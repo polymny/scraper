@@ -1,0 +1,21 @@
+{% extends "base" %}
+
+{% block extracss %}
+<style>
+    .cell {
+        border: solid;
+        border-width: 1px;
+        border-radius: 5px;
+        padding: 0.5em;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<section class="section">
+    <div class="fixed-grid has-8-cols">
+        <div class="grid">
+        </div>
+    </div>
+</section>
+{% endblock content %}

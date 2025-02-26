@@ -1,0 +1,34 @@
+[default]
+
+# Adresse d'écoute du serveur
+address = "0.0.0.0"
+
+# Port d'écoute du serveur
+port = 8000
+
+# URL de base du serveur
+root = "http://localhost:8000"
+
+# Clé pour le chiffrement des cookies (peut être générée par `openssl rand -base64 32`)
+secret_key = "wv+lwi9LgP0TDJW5pUPcOiHnEHH5BC0BO9H7kkFwVdE="
+
+# Adresse de connexion du serveur websocket
+socket_root = "ws://localhost:8000/ws"
+
+# Chemin de stockage des données
+data_path = "/data/scraping/apidae"
+
+# Nombre de téléchargements concurrents lancés simultanément
+jobs = 20
+
+# Nombre d'images à mettre dans un batch pour le cropping
+batch_size = 128
+
+# Limites pour l'envoi des fichiers (1GiB)
+limits = { form = 1073741824, data-form = 1073741824, file = 1073741824 }
+
+[default.databases.database]
+
+# URL de connexion à la base de données (postgres://username:password@host/dbname)
+url = "postgres://scraper:scraper@localhost:5433/scraper"
+

@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <title>Scraper</title>
+        <link rel="stylesheet" href="/static/bulma.min.css">
+        <style>
+            /* Comment to unblur images */
+            .blur {
+                filter: blur(2rem);
+            }
+        </style>
+        {% block extracss %}{% endblock extracss %}
+    </head>
+    <body>
+        <nav class="navbar has-shadow is-link is-boxed" role="navigation" aria-label="dropdown navigation">
+            <div>
+                <div class="navbar-brand">
+                    <a class="navbar-item" href="/"><strong class="is-size-4">Scraper</strong></a>
+
+                    <a role="button" class="navbar-burger" aria-label="menu" aria-expanded="false" data-target="navbarBasicExample">
+                        <span aria-hidden="true"></span>
+                        <span aria-hidden="true"></span>
+                        <span aria-hidden="true"></span>
+                        <span aria-hidden="true"></span>
+                    </a>
+                </div>
+                <div id="navbarBasicExample" class="navbar-menu">
+                    <div class="navbar-end">
+                    </div>
+                </div>
+            </div>
+        </nav>
+        {% block content %}{% endblock content %}
+        {% block extrajs %}{% endblock extrajs %}
+    </body>
+</html>
