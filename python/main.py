@@ -17,7 +17,7 @@ WEIGHTS_URL = "https://github.com/edgaremy/quick-detector/raw/refs/heads/main/mo
 
 
 def eprint(*args, **kwargs):
-    print(*args, file=sys.stderr, **kwargs)
+    print(*args, file=sys.stderr, **kwargs, flush=True)
 
 
 class Request:
@@ -62,7 +62,12 @@ class End(Request):
         return f"End()"
 
 
-class FileCropSuccess:
+class Response:
+    def to_json(self):
+        return json.dumps(self.__dict__)
+
+
+class FileCropSuccess(Response):
     def __init__(self, id, path, box, confidence):
         self.type = "file_crop_success"
         self.id = id
@@ -73,18 +78,13 @@ class FileCropSuccess:
         self.height = box[3]
         self.confidence = confidence
 
-    def to_json(self):
-        return json.dumps(self.__dict__)
 
-
-class FileCropFailure:
+class FileCropFailure(Response):
     def __init__(self, id, path):
         self.type = "file_crop_failure"
         self.id = id
         self.path = path
 
-    def to_json(self):
-        return json.dumps(self.__dict__)
 
 def main():
     # Download YOLO weights if not present

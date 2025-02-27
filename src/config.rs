@@ -4,8 +4,15 @@ use std::path::PathBuf;
 
 use serde::{Deserialize, Serialize};
 
+use uuid::{uuid, Uuid};
+
 use rocket::figment::Figment;
 use rocket::Phase;
+
+/// Blacklisted dataset.
+///
+/// It only contains pictures of labels, not animals.
+pub const BLACKLISTED_DATASET: Uuid = uuid!("aae308f4-9f9c-4cdd-b4ef-c026f48be551");
 
 /// The databases of the server.
 #[derive(Debug, Clone, Serialize, Deserialize)]

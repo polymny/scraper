@@ -124,11 +124,25 @@ impl Cropper {
         let mut command = Command::new("python");
         command.arg("python/main.py");
         command.stdin(Stdio::piped());
+        command.stderr(Stdio::piped());
         command.stdout(Stdio::piped());
 
         let mut child = command.spawn()?;
         let stdin = child.stdin.take().ok_or(Error::InitializeCropperFailed)?;
         let stdout = child.stdout.take().ok_or(Error::InitializeCropperFailed)?;
+        let stderr = child.stderr.take().ok_or(Error::InitializeCropperFailed)?;
+
+        tokio::spawn(async {
+            let mut bufread = BufReader::new(stderr);
+            loop {
+                let mut line = String::new();
+                match bufread.read_line(&mut line).await {
+                    Ok(0) => break,
+                    Ok(_) => info!("[Python] {}", line),
+                    _ => (),
+                }
+            }
+        });
 
         Ok(Cropper {
             stdin,
@@ -169,6 +183,12 @@ impl Cropper {
             self.batch_size = 0;
         }
 
+        Ok(())
+    }
+
+    /// Sends the end request to the cropper.
+    pub async fn end(&mut self) -> Result<()> {
+        self.send_request(Request::End).await?;
         Ok(())
     }
 
@@ -262,30 +282,29 @@ impl Cropper {
             let mut receiver = receiver;
             loop {
                 match receiver.recv().await {
-                    Some(Some(id)) => {
-                        let db = std::ops::DerefMut::deref_mut(&mut cropper.db.0);
-                        match Media::get_by_id(id, db).await {
-                            Ok(Some(media)) => {
-                                if let Err(e) = cropper.add_media(&media).await {
-                                    error!("Failed to add media to cropper: {}", e);
-                                }
-                            }
-
-                            Ok(None) => {
-                                error!("Asked python to crop non existing media");
-                            }
-
-                            Err(e) => {
-                                error!("An error occured receiving media from main thread: {}", e);
+                    Some(Some(id)) => match Media::get_by_id(id, &cropper.db).await {
+                        Ok(Some(media)) => {
+                            if let Err(e) = cropper.add_media(&media).await {
+                                error!("Failed to add media to cropper: {}", e);
                             }
                         }
-                    }
+
+                        Ok(None) => {
+                            error!("Asked python to crop non existing media");
+                        }
+
+                        Err(e) => {
+                            error!("An error occured receiving media from main thread: {}", e);
+                        }
+                    },
 
                     Some(None) => {
                         // We need to end, send end to python
-                        if let Err(e) = cropper.send_request(Request::End).await {
+                        info!("Asking python to end");
+                        if let Err(e) = cropper.end().await {
                             error!("Failed to ask cropper for termination: {}", e);
                         }
+                        break;
                     }
 
                     _ => (),

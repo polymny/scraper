@@ -156,22 +156,6 @@ impl Entry {
         self.is_species() && self.is_present_france() && self.is_terrestrial()
     }
 
-    /// Returns the name of the entry, without the author.
-    pub fn pretty_name(&self) -> Option<String> {
-        let split = self.valid_name.replace("(", "").replace(")", "");
-        let split = split.split_whitespace().collect::<Vec<_>>();
-
-        // Found the author: its the second word that starts with uppercase character
-        let author_index = split
-            .iter()
-            .skip(1)
-            .position(|x| x.chars().any(char::is_uppercase))?
-            + 1;
-
-        // Join everything until author
-        Some(split[0..author_index].join(" "))
-    }
-
     /// Returns the corresponding name of the taxonomic level given as argument.
     pub fn get_taxon(&self, level: Taxon) -> &str {
         match level {

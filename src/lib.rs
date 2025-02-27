@@ -18,24 +18,26 @@ use std::env::args;
 use std::fs::{create_dir_all, File};
 use std::process::exit;
 use std::result::Result as StdResult;
-use std::sync::Arc;
 use std::time::Duration;
 use std::{fmt, io};
-
-use uuid::uuid;
 
 use chrono::prelude::*;
 
 use tokio::sync::mpsc::unbounded_channel;
 use tokio::sync::Semaphore;
+use tokio::task::JoinHandle;
+
+use rocket::http::Status;
+use rocket::request::{FromRequest, Outcome, Request};
+use rocket::State;
 
 use ergol::deadpool::managed::Object;
 use ergol::prelude::*;
 use ergol::tokio_postgres::Error as TpError;
 use ergol::Pool;
 
-use crate::config::Config;
-use crate::cropper::{Cropper, Request};
+use crate::config::{Config, BLACKLISTED_DATASET};
+use crate::cropper::Cropper;
 use crate::db::{Media, Species};
 use crate::logger::Log;
 use crate::taxref::{Entry, Taxon};
@@ -75,6 +77,9 @@ pub enum Error {
 
     /// An error with the rocket web framework.
     RocketError(rocket::Error),
+
+    /// An internal server error for our server.
+    InternalServerError,
 }
 
 impl fmt::Display for Error {
@@ -93,6 +98,7 @@ impl fmt::Display for Error {
             }
             Error::InitializeCropperFailed => write!(f, "error initializing cropper"),
             Error::RocketError(e) => write!(f, "error with rocket: {}", e),
+            Error::InternalServerError => write!(f, "internal server error"),
         }
     }
 }
@@ -153,6 +159,36 @@ impl std::ops::DerefMut for Db {
     }
 }
 
+impl ergol::Queryable<ergol::tokio_postgres::Client> for Db {
+    fn client(&self) -> &ergol::tokio_postgres::Client {
+        &std::ops::Deref::deref(&self.0).client
+    }
+}
+
+#[rocket::async_trait]
+impl<'r> FromRequest<'r> for Db {
+    type Error = Error;
+
+    async fn from_request(request: &'r Request<'_>) -> Outcome<Self, Self::Error> {
+        let pool = match request.guard::<&State<Pool>>().await {
+            Outcome::Success(pool) => pool,
+            Outcome::Error(_) => {
+                return Outcome::Error((Status::InternalServerError, Error::InternalServerError))
+            }
+            Outcome::Forward(s) => return Outcome::Forward(s),
+        };
+
+        let db = match pool.get().await {
+            Ok(db) => db,
+            Err(_) => {
+                return Outcome::Error((Status::InternalServerError, Error::InternalServerError))
+            }
+        };
+
+        Outcome::Success(Db(db))
+    }
+}
+
 /// Scraps occurrences and then medias.
 pub async fn scrap(
     taxon: Taxon,
@@ -162,8 +198,6 @@ pub async fn scrap(
     crop: bool,
     config: &Config,
 ) -> Result<()> {
-    let blacklist = uuid!("aae308f4-9f9c-4cdd-b4ef-c026f48be551");
-
     let pool =
         ergol::pool(&config.databases.database.url, 32).expect("Failed to connect to the database");
 
@@ -193,14 +227,14 @@ pub async fn scrap(
             species.valid_name
         );
 
-        let mut transaction = db.transaction().await?;
+        let transaction = db.transaction().await?;
 
         let s = Species::scrap_occurrences(
             species,
             max_occurrences,
-            &blacklist,
+            &BLACKLISTED_DATASET,
             &config.storage,
-            &mut transaction,
+            &transaction,
         )
         .await;
 
@@ -228,7 +262,6 @@ pub async fn scrap(
     // We're doing this with two big requests
     // First one: mark every first media for every occurrence
     info!("First request: first media for each occurrence");
-    let db = std::ops::DerefMut::deref_mut(&mut db.0);
     let sql = r#"
         UPDATE medias
         SET to_download = TRUE
@@ -245,7 +278,7 @@ pub async fn scrap(
     "#;
 
     info!("{}", sql);
-    db.client().query(sql, &[&blacklist]).await?;
+    db.client().query(sql, &[&BLACKLISTED_DATASET]).await?;
 
     // Second one: mark every media for every species with available_occurences < min_occurrences
     // This request does not take into account the available_occurences attribute which counts
@@ -275,12 +308,11 @@ pub async fn scrap(
 
     info!("{}", sql);
     db.client()
-        .query(sql, &[&blacklist, &(min_occurrences as i64)])
+        .query(sql, &[&BLACKLISTED_DATASET, &(min_occurrences as i64)])
         .await?;
 
     // First pass: download all media marked to_download
-
-    let sender = if crop {
+    let cropper = if crop {
         info!("initializing cropper");
         let db = Db::from_pool(pool.clone())
             .await
@@ -290,9 +322,7 @@ pub async fn scrap(
         let cropper =
             Cropper::new(config.batch_size, config.clone(), db).expect("Failed to create cropper");
 
-        cropper.run(rx);
-
-        Some(tx)
+        Some((cropper.run(rx), tx))
     } else {
         None
     };
@@ -315,7 +345,9 @@ pub async fn scrap(
     let mut offset = 0;
     let chunk_size = 100000;
 
-    let semaphore = Arc::new(Semaphore::new(config.jobs));
+    let semaphore = Semaphore::new(config.jobs);
+
+    let mut handles = vec![];
 
     loop {
         let medias = Media::select()
@@ -328,24 +360,23 @@ pub async fn scrap(
 
         let len = medias.len();
 
-        let mut handles = vec![];
-
         for media in medias {
             let pool = pool.clone();
             let client = client.clone();
             let config = config.clone();
-            let semaphore = semaphore.clone();
-            let sender = sender.clone();
+            let sender = cropper.as_ref().map(|x| x.1.clone());
+
+            let _ = semaphore.acquire().await.unwrap();
+
+            // Remove finished handles
+            handles.retain(|x: &JoinHandle<_>| !x.is_finished());
 
             count += 1;
 
             handles.push(tokio::spawn(async move {
-                let _permit = semaphore.acquire().await.unwrap();
                 let mut media = media;
-                let mut db = Db::from_pool(pool).await.unwrap();
-                let db = std::ops::DerefMut::deref_mut(&mut db.0);
-
-                let result = media.download(&client, &config.storage, db).await;
+                let db = Db::from_pool(pool).await.unwrap();
+                let result = media.download(&client, &config.storage, &db).await;
 
                 match result {
                     Ok(c) if c == 299 => info!(
@@ -393,10 +424,6 @@ pub async fn scrap(
             }));
         }
 
-        for handle in handles {
-            handle.await.unwrap();
-        }
-
         if len < chunk_size {
             break;
         }
@@ -404,10 +431,17 @@ pub async fn scrap(
         offset += chunk_size;
     }
 
-    // Finalize cropper
-    if let Some(sender) = sender {
-        sender.send(None).unwrap();
+    for handle in handles {
+        handle.await.unwrap();
     }
+
+    // Finalize cropper
+    if let Some((handle, sender)) = cropper {
+        sender.send(None).unwrap();
+        handle.await.unwrap();
+    }
+
+    info!("Scraping finished");
 
     Ok(())
 }
@@ -416,7 +450,7 @@ async fn crop(batch_size: usize, config: &Config) -> Result<()> {
     let pool =
         ergol::pool(&config.databases.database.url, 32).expect("Failed to connect to the database");
 
-    let mut db = Db::from_pool(pool.clone())
+    let db = Db::from_pool(pool.clone())
         .await
         .expect("Failed to connect to the database");
 
@@ -431,15 +465,13 @@ async fn crop(batch_size: usize, config: &Config) -> Result<()> {
     let chunk_size = 100000;
 
     loop {
-        let db = std::ops::DerefMut::deref_mut(&mut db.0);
-
         use db::media;
         let medias = Media::select()
             .filter(media::to_download::eq(true).and(media::cropped::eq(false)))
             .order_by(db::media::id::ascend())
             .offset(offset)
             .limit(chunk_size)
-            .execute(db)
+            .execute(&db)
             .await?;
 
         let len = medias.len();
@@ -458,7 +490,7 @@ async fn crop(batch_size: usize, config: &Config) -> Result<()> {
     }
 
     // Finalize cropper
-    cropper.send_request(Request::End).await?;
+    cropper.end().await?;
 
     Ok(())
 }

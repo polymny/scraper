@@ -5,6 +5,10 @@ use std::io::Write;
 use std::path::PathBuf;
 use std::time::Duration;
 
+use serde::Serialize;
+
+use serde_json::{json, Value};
+
 use tokio::time::sleep;
 
 use ergol::prelude::*;
@@ -21,7 +25,8 @@ use infer::MatcherType;
 use crate::config::Storage;
 use crate::gbif::{search_occurrences, search_species, OccurrencesResponse, MAX_LIMIT_OCCURRENCES};
 use crate::taxref::Entry;
-use crate::{Error, Result};
+use crate::utils::{pretty_finder, pretty_name};
+use crate::{Db, Error, Result};
 
 /// A species that is ignored because we already have another species with the same species key in the database.
 #[ergol]
@@ -74,6 +79,7 @@ impl IgnoredSpecies {
 
 /// A species that is registered in the database.
 #[ergol]
+#[derive(Serialize)]
 pub struct Species {
     /// Id of the row in the database.
     #[id]
@@ -113,6 +119,22 @@ pub struct Species {
 }
 
 impl Species {
+    /// Returns a meaningful representation of the species in JSON.
+    pub async fn to_json(&self, db: &Db) -> Result<Value> {
+        Ok(json!({
+            "reign": self.reign,
+            "phylum": self.phylum,
+            "class": self.class,
+            "order": self.order,
+            "family": self.family,
+            "genus": self.genus,
+            "valid_name": self.valid_name,
+            "pretty_name": pretty_name(&self.valid_name),
+            "pretty_finder": pretty_finder(&self.valid_name),
+            "occurrences": self.occurrences(db).await?,
+            "species_key": self.species_key,
+        }))
+    }
     /// Prepares a species without id from its taxref entry.
     pub fn from_taxref(
         entry: Entry,
@@ -139,7 +161,7 @@ impl Species {
         max_occurrences: usize,
         blacklist: &Uuid,
         storage: &Storage,
-        db: &mut T,
+        db: &T,
     ) -> Result<Species> {
         // Check if species is already in the db.
         let db_species = Species::get_by_valid_name(&species.valid_name, db).await?;
@@ -166,7 +188,7 @@ impl Species {
         let species_key = if let Some(species_key) = species_key {
             species_key
         } else {
-            let pretty = species.pretty_name().expect(&format!(
+            let pretty = pretty_name(&species.valid_name).expect(&format!(
                 "Failed to extract pretty name from \"{}\"",
                 species.valid_name,
             ));
@@ -245,7 +267,7 @@ impl Species {
 
             // Append newly found results to results, both json and db.
             // In database:
-            for result in &parsed_occurrences.results {
+            for result in &parsed.results {
                 let occurrence = Occurrence::create(result.key, result.dataset_key, &db_species)
                     .save(db)
                     .await?;
@@ -290,12 +312,14 @@ impl Species {
 
 /// An occurrence of a species.
 #[ergol]
+#[derive(Serialize)]
 pub struct Occurrence {
     /// Id of the row in the database.
     #[id]
     pub id: i32,
 
     /// Id of the occurrence in GBIF.
+    #[unique]
     pub key: i64,
 
     /// UUID of the dataset that contains the occurrence.
@@ -303,11 +327,13 @@ pub struct Occurrence {
 
     /// The species that correspond to this occurrence.
     #[many_to_one(occurrences)]
+    #[serde(skip)]
     pub species: Species,
 }
 
 /// A media of an occurrence.
 #[ergol]
+#[derive(Serialize)]
 pub struct Media {
     /// Id of the row in the database
     #[id]
@@ -349,6 +375,7 @@ pub struct Media {
 
     /// Occurrence that references this media.
     #[many_to_one(medias)]
+    #[serde(skip)]
     pub occurrence: Occurrence,
 }
 
@@ -375,7 +402,7 @@ impl Media {
         &mut self,
         client: &Client,
         storage: &Storage,
-        db: &mut Q,
+        db: &Q,
     ) -> Result<i32> {
         if let Some(status_code) = self.status_code {
             if 200 <= status_code && status_code < 400 {
@@ -414,7 +441,7 @@ impl Media {
         species: &Species,
         client: &Client,
         storage: &Storage,
-        db: &mut Q,
+        db: &Q,
     ) -> Result<i32> {
         let mut retries = 3;
 

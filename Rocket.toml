@@ -19,7 +19,7 @@ socket_root = "ws://localhost:8000/ws"
 data_path = "/data/scraping/apidae"
 
 # Nombre de téléchargements concurrents lancés simultanément
-jobs = 20
+jobs = 50
 
 # Nombre d'images à mettre dans un batch pour le cropping
 batch_size = 128
