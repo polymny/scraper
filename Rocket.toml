@@ -22,7 +22,7 @@ data_path = "/data/scraping/apidae"
 jobs = 50
 
 # Nombre d'images à mettre dans un batch pour le cropping
-batch_size = 128
+batch_size = 200
 
 # Limites pour l'envoi des fichiers (1GiB)
 limits = { form = 1073741824, data-form = 1073741824, file = 1073741824 }

@@ -73,10 +73,26 @@ impl Storage {
         self.data_path.join("species")
     }
 
+    /// Returns the root of the cropped medias directory.
+    pub fn cropped_root(&self) -> PathBuf {
+        self.data_path.join("medias_cropped")
+    }
+
     /// Returns the media path for a species.
     pub fn medias_dir(&self, species_key: i64) -> PathBuf {
         self.data_path
             .join("medias")
+            .join(&self.medias_dir_local(species_key))
+    }
+
+    /// Returns the path to the temporary directory where the python can move cropped images.
+    pub fn tmp_dir(&self) -> PathBuf {
+        self.data_path.join("tmp")
+    }
+
+    /// Returns the cropped media path for a species.
+    pub fn cropped_medias_dir(&self, species_key: i64) -> PathBuf {
+        self.cropped_root()
             .join(&self.medias_dir_local(species_key))
     }
 

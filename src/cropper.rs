@@ -4,6 +4,7 @@ use std::process::Stdio;
 
 use serde::{Deserialize, Serialize};
 
+use tokio::fs::{remove_dir_all, rename};
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::process::{ChildStdin, ChildStdout, Command};
 use tokio::sync::mpsc::UnboundedReceiver;
@@ -49,10 +50,20 @@ pub struct AddFileRequest {
     pub path: String,
 }
 
-/// A message that was received by to python.
+/// A batch from python.
+#[derive(Serialize, Deserialize)]
+pub struct Batch {
+    /// The id of the batch.
+    pub id: i32,
+
+    /// The files that were treated by python.
+    pub files: Vec<ResponseItem>,
+}
+
+/// A file that was treated to python.
 #[derive(Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
-pub enum Response {
+pub enum ResponseItem {
     /// A file was cropped.
     FileCropSuccess(FileCropSuccessResponse),
 
@@ -69,6 +80,9 @@ pub struct FileCropSuccessResponse {
 
     /// The path to the file.
     pub path: String,
+
+    /// The path to the cropped file.
+    pub cropped_path: String,
 
     /// The x coordinate of the center of the bounding box.
     pub x: f64,
@@ -121,8 +135,14 @@ pub struct Cropper {
 impl Cropper {
     /// Creates a new cropper.
     pub fn new(batch_capacity: usize, config: Config, db: Db) -> Result<Cropper> {
+        let tmp_dir = config.storage.tmp_dir();
+        let tmp_dir = tmp_dir
+            .to_str()
+            .expect("Failed to convert tmp dir to string");
+
         let mut command = Command::new("python");
         command.arg("python/main.py");
+        command.arg(&tmp_dir);
         command.stdin(Stdio::piped());
         command.stderr(Stdio::piped());
         command.stdout(Stdio::piped());
@@ -138,7 +158,11 @@ impl Cropper {
                 let mut line = String::new();
                 match bufread.read_line(&mut line).await {
                     Ok(0) => break,
-                    Ok(_) => info!("[Python] {}", line),
+                    Ok(_) => {
+                        // Remove trailing new line: info! will add the new line itself
+                        line.pop();
+                        info!("[Python] {}", line);
+                    }
                     _ => (),
                 }
             }
@@ -218,13 +242,13 @@ impl Cropper {
 
         info!("Received response from python");
 
-        let responses: Vec<Response> = serde_json::from_str(&line)?;
+        let batch: Batch = serde_json::from_str(&line)?;
         let mut t = self.db.transaction().await?;
         let mut failures = vec![];
 
-        for response in &responses {
+        for response in &batch.files {
             match response {
-                Response::FileCropSuccess(file_crop_success) => {
+                ResponseItem::FileCropSuccess(file_crop_success) => {
                     let mut media = Media::get_by_id(file_crop_success.id, &mut t)
                         .await?
                         .expect("Python answered with media id that doesn't exists, this should never happen");
@@ -236,9 +260,16 @@ impl Cropper {
                     media.height = Some(file_crop_success.height);
                     media.confidence = Some(file_crop_success.confidence);
                     media.save(&mut t).await?;
+
+                    // Move cropped image
+                    rename(
+                        &file_crop_success.cropped_path,
+                        self.config.storage.cropped_root().join(media.path.unwrap()),
+                    )
+                    .await?;
                 }
 
-                Response::FileCropFailure(file_crop_failure) => {
+                ResponseItem::FileCropFailure(file_crop_failure) => {
                     failures.push(format!("{}", file_crop_failure.id));
                     let mut media = Media::get_by_id(file_crop_failure.id, &mut t)
                         .await?
@@ -263,10 +294,14 @@ impl Cropper {
                 failures.join(", ")
             )
         }
+
+        // Clean batch tmp files
+        remove_dir_all(self.config.storage.tmp_dir().join(format!("{}", batch.id))).await?;
+
         info!(
             "Python successfully cropped {} out of {} images",
-            responses.len() - failures.len(),
-            responses.len()
+            batch.files.len() - failures.len(),
+            batch.files.len()
         );
 
         Ok(())

@@ -220,10 +220,9 @@ impl Species {
         let mut json_occurrences =
             search_occurrences(species_key, 0, MAX_LIMIT_OCCURRENCES).await?;
 
-        let parsed_occurrences: OccurrencesResponse =
+        let mut parsed_occurrences: OccurrencesResponse =
             serde_json::from_value(json_occurrences.clone())?;
 
-        let mut scraped = 0;
         let mut count = parsed_occurrences.results.len();
 
         // Now that we know the total number of occurrences available, we can store the species in the database.
@@ -232,31 +231,13 @@ impl Species {
                 .save(db)
                 .await?;
 
-        // Save first occurrences with their medias in database.
-        for result in &parsed_occurrences.results {
-            let occurrence = Occurrence::create(result.key, result.dataset_key, &db_species)
-                .save(db)
-                .await?;
-
-            for media in &result.medias {
-                let url = if let Some(url) = media.url.as_ref() {
-                    url
-                } else {
-                    continue;
-                };
-
-                let path = PathBuf::from(url.split("/").skip(2).collect::<Vec<_>>().join("/"));
-                if path.extension().is_none() {
-                    continue;
-                }
-
-                Media::new(url, &occurrence).save(db).await?;
-            }
-
-            if result.dataset_key != *blacklist {
-                scraped += 1;
-            }
-        }
+        // Count non blacklisted occurrences that have medias.
+        let mut scraped = parsed_occurrences
+            .results
+            .iter()
+            .filter(|x| x.dataset_key != *blacklist)
+            .filter(|x| !x.medias.is_empty())
+            .count();
 
         // If we don't have enough occurrences, fetch more.
         while scraped < max_occurrences && count < parsed_occurrences.count as usize {
@@ -265,31 +246,19 @@ impl Species {
             let parsed: OccurrencesResponse = serde_json::from_value(current.clone())?;
             count += parsed.results.len();
 
-            // Append newly found results to results, both json and db.
-            // In database:
-            for result in &parsed.results {
-                let occurrence = Occurrence::create(result.key, result.dataset_key, &db_species)
-                    .save(db)
-                    .await?;
+            // Count non blacklisted occurrences that have medias.
+            scraped += &parsed
+                .results
+                .iter()
+                .filter(|x| x.dataset_key != *blacklist)
+                .filter(|x| !x.medias.is_empty())
+                .count();
 
-                for media in &result.medias {
-                    let url = if let Some(url) = media.url.as_ref() {
-                        url
-                    } else {
-                        continue;
-                    };
+            // Append results to parsed occurrences.
+            parsed_occurrences.results.extend(parsed.results);
 
-                    Media::new(url, &occurrence).save(db).await?;
-                }
-
-                if result.dataset_key != *blacklist {
-                    scraped += 1;
-                }
-            }
-
-            // In json:
-            // Note: these unwraps are ok because if they failed, the parsing of the json would
-            // have failed earlier.
+            // Append results to parsed json.
+            // Note: these unwraps are ok because if they failed, the parsing of the json would have failed earlier.
             json_occurrences
                 .get_mut("results")
                 .unwrap()
@@ -303,6 +272,36 @@ impl Species {
             File::create(storage.species_dir().join(format!("{}.json", species_key)))?;
 
         json_file.write_all(serde_json::to_string_pretty(&json_occurrences)?.as_bytes())?;
+
+        // Save occurrences and media in db.
+        'outer: for result in &parsed_occurrences.results {
+            // We only want to save occurrences that do not have media already present in the database (GBIF contains
+            // duplicates that we want to avoid).
+            for media in &result.medias {
+                if let Some(url) = &media.url {
+                    if Media::get_by_url(url, db).await?.is_some() {
+                        // We found a duplicate, so we continue outer loop, i.e. go to next result.
+                        continue 'outer;
+                    }
+                }
+            }
+
+            // We have no longer duplicates: insert occurrences and medias in database.
+            let occurrence = Occurrence::create(result.key, result.dataset_key, &db_species)
+                .save(db)
+                .await?;
+
+            for media in &result.medias {
+                let url = if let Some(url) = media.url.as_ref() {
+                    url
+                } else {
+                    continue;
+                };
+
+                Media::new(url, &occurrence).save(db).await?;
+            }
+        }
+
         db_species.done = true;
         db_species.save(db).await?;
 
@@ -340,6 +339,7 @@ pub struct Media {
     pub id: i32,
 
     /// The url of the media.
+    #[unique]
     pub url: String,
 
     /// The path with which we will store the media.
@@ -455,9 +455,10 @@ impl Media {
             if code == 429 && retries > 0 {
                 // Too many requests, wait a little bit, and try again
                 trace!(
-                    "Received 429 for {} {}, waiting a little bit",
+                    "Received 429 for {} {}, waiting a little bit (attempt={})",
                     self.id,
-                    self.url
+                    self.url,
+                    4 - retries,
                 );
                 retries -= 1;
                 sleep(Duration::from_secs(10)).await;

@@ -15,7 +15,7 @@ pub mod taxref;
 pub mod utils;
 
 use std::env::args;
-use std::fs::{create_dir_all, File};
+use std::fs::File;
 use std::process::exit;
 use std::result::Result as StdResult;
 use std::time::Duration;
@@ -23,6 +23,7 @@ use std::{fmt, io};
 
 use chrono::prelude::*;
 
+use tokio::fs::create_dir_all;
 use tokio::sync::mpsc::unbounded_channel;
 use tokio::sync::Semaphore;
 use tokio::task::JoinHandle;
@@ -208,7 +209,7 @@ pub async fn scrap(
     // Create occurrences directory
     let species_dir = config.storage.species_dir();
     let species_dir = species_dir.to_str().expect("Failed to convert path to str");
-    create_dir_all(species_dir).expect(&format!(
+    create_dir_all(species_dir).await.expect(&format!(
         "Failed to create species directory \"{}\"",
         species_dir
     ));
@@ -245,8 +246,15 @@ pub async fn scrap(
                 if let Some(species_key) = s.species_key {
                     let medias_dir = config.storage.medias_dir(species_key);
                     let medias_dir = medias_dir.to_str().expect("Failed to convert path to str");
-                    create_dir_all(medias_dir).expect(&format!(
-                        "Failed to create species directory \"{}\"",
+                    create_dir_all(medias_dir).await.expect(&format!(
+                        "Failed to create medias directory \"{}\"",
+                        medias_dir
+                    ));
+
+                    let medias_dir = config.storage.cropped_medias_dir(species_key);
+                    let medias_dir = medias_dir.to_str().expect("Failed to convert path to str");
+                    create_dir_all(medias_dir).await.expect(&format!(
+                        "Failed to create cropped medias directory \"{}\"",
                         medias_dir
                     ));
                 }
@@ -257,59 +265,62 @@ pub async fn scrap(
         }
     }
 
-    info!("Marking medias to download");
+    /*
+        info!("Marking medias to download");
 
-    // We're doing this with two big requests
-    // First one: mark every first media for every occurrence
-    info!("First request: first media for each occurrence");
-    let sql = r#"
-        UPDATE medias
-        SET to_download = TRUE
-        FROM (
-            SELECT DISTINCT ON (occurrence) medias.id
-            FROM medias, occurrences
-            WHERE
-                medias.occurrence = occurrences.id and
-                occurrences.dataset_key != $1
-            ORDER BY
-                medias.occurrence, medias.id
-        ) AS subquery
-        WHERE medias.id = subquery.id;
-    "#;
+        // We're doing this with two big requests
+        // First one: mark every first media for every occurrence
+        info!("First request: first media for each occurrence");
+        let sql = r#"
+            UPDATE medias
+            SET to_download = TRUE
+            FROM (
+                SELECT DISTINCT ON (occurrence) medias.id
+                FROM medias, occurrences
+                WHERE
+                    medias.occurrence = occurrences.id and
+                    occurrences.dataset_key != $1
+                ORDER BY
+                    medias.occurrence, medias.id
+            ) AS subquery
+            WHERE medias.id = subquery.id;
+        "#;
 
-    info!("{}", sql);
-    db.client().query(sql, &[&BLACKLISTED_DATASET]).await?;
+        info!("{}", sql);
+        db.client().query(sql, &[&BLACKLISTED_DATASET]).await?;
 
-    // Second one: mark every media for every species with available_occurences < min_occurrences
-    // This request does not take into account the available_occurences attribute which counts
-    // blacklisted datasets.
-    info!(
-        "Second request: every media for each species with less than {} occurrences",
-        min_occurrences
-    );
+        // Second one: mark every media for every species with available_occurences < min_occurrences
+        // This request does not take into account the available_occurences attribute which counts
+        // blacklisted datasets.
+        info!(
+            "Second request: every media for each species with less than {} occurrences",
+            min_occurrences
+        );
 
-    let sql = r#"
-        UPDATE medias
-        SET to_download = TRUE
-        FROM (
-            SELECT occurrences.id
-            FROM occurrences,
-                (
-                    SELECT occurrences.species
-                    FROM occurrences
-                    WHERE occurrences.dataset_key != $1
-                    GROUP BY occurrences.species
-                    HAVING count(occurrences.id) < $2
-                ) as subquery
-            WHERE occurrences.species = subquery.species
-        ) AS subquery2
-        WHERE medias.id = subquery2.id;
-    "#;
+        let sql = r#"
+            UPDATE medias
+            SET to_download = TRUE
+            FROM (
+                SELECT occurrences.id
+                FROM occurrences,
+                    (
+                        SELECT occurrences.species
+                        FROM occurrences
+                        WHERE occurrences.dataset_key != $1
+                        GROUP BY occurrences.species
+                        HAVING count(occurrences.id) < $2
+                    ) as subquery
+                WHERE occurrences.species = subquery.species
+            ) AS subquery2
+            WHERE medias.id = subquery2.id;
+        "#;
 
-    info!("{}", sql);
-    db.client()
-        .query(sql, &[&BLACKLISTED_DATASET, &(min_occurrences as i64)])
-        .await?;
+        info!("{}", sql);
+        db.client()
+            .query(sql, &[&BLACKLISTED_DATASET, &(min_occurrences as i64)])
+            .await?;
+
+    */
 
     // First pass: download all media marked to_download
     let cropper = if crop {
@@ -334,94 +345,74 @@ pub async fn scrap(
         .unwrap();
 
     // Count medias to download for showing progress
-    let total: i64 = db
-        .client()
-        .query_one("SELECT count(id) FROM medias WHERE to_download;", &[])
-        .await?
-        .get(0);
-
-    let mut count = 0;
-
     let mut offset = 0;
-    let chunk_size = 100000;
+    let chunk_size = 1000;
 
     let semaphore = Semaphore::new(config.jobs);
 
     let mut handles = vec![];
 
     loop {
-        let medias = Media::select()
-            .filter(db::media::to_download::eq(true))
-            .order_by(db::media::id::ascend())
+        let species = Species::select()
+            .order_by(db::species::id::ascend())
             .offset(offset)
             .limit(chunk_size)
-            .execute(&mut db.transaction().await?)
+            .execute(&db.transaction().await?)
             .await?;
 
-        let len = medias.len();
+        let len = species.len();
 
-        for media in medias {
-            let pool = pool.clone();
-            let client = client.clone();
-            let config = config.clone();
-            let sender = cropper.as_ref().map(|x| x.1.clone());
+        for (index, species) in species.iter().enumerate() {
+            let occurrences = species.occurrences(&db).await?;
 
-            let _ = semaphore.acquire().await.unwrap();
+            let species_progress = 100.0 * (index as f32) / len as f32;
+            info!(
+                "[2/2] {:05.2}% [{:05}/{}] Species: {}",
+                species_progress,
+                index + 1,
+                len,
+                species.valid_name,
+            );
 
-            // Remove finished handles
-            handles.retain(|x: &JoinHandle<_>| !x.is_finished());
+            for occurrence in &occurrences {
+                let medias = occurrence.medias(&db).await?;
 
-            count += 1;
+                for media in medias {
+                    let pool = pool.clone();
+                    let client = client.clone();
+                    let config = config.clone();
+                    let sender = cropper.as_ref().map(|x| x.1.clone());
 
-            handles.push(tokio::spawn(async move {
-                let mut media = media;
-                let db = Db::from_pool(pool).await.unwrap();
-                let result = media.download(&client, &config.storage, &db).await;
+                    let _ = semaphore.acquire().await.unwrap();
 
-                match result {
-                    Ok(c) if c == 299 => info!(
-                        "[2/2] {:05.2}% [{:05}/{}] Skipped download {} {}",
-                        100.0 * count as f32 / total as f32,
-                        count,
-                        total,
-                        media.id,
-                        media.url
-                    ),
-                    Ok(c) if 200 <= c && c < 400 => {
-                        // Ask cropper to crop media if necessary
-                        if let Some(sender) = sender {
-                            sender.send(Some(media.id)).unwrap();
+                    // Remove finished handles
+                    handles.retain(|x: &JoinHandle<_>| !x.is_finished());
+
+                    handles.push(tokio::spawn(async move {
+                        let mut media = media;
+                        let db = Db::from_pool(pool).await.unwrap();
+                        let result = media.download(&client, &config.storage, &db).await;
+
+                        match result {
+                            Ok(c) if 200 <= c && c < 400 => {
+                                // Ask cropper to crop media if necessary
+                                if let Some(sender) = sender {
+                                    sender.send(Some(media.id)).unwrap();
+                                }
+                            }
+
+                            Ok(c) if c == 299 => (),
+                            Ok(e) => error!("Failed downloading {} {} {}", media.id, media.url, e),
+                            Err(e) => error!("Failed downloading {} {} {}", media.id, media.url, e),
                         }
+                    }));
 
-                        info!(
-                            "[2/2] {:05.2}% [{:05}/{}] Successfully downloaded {} {}",
-                            100.0 * count as f32 / total as f32,
-                            count,
-                            total,
-                            media.id,
-                            media.url
-                        );
+                    // Only one media per occurrence if there are more than min_occurrences
+                    if occurrences.len() > min_occurrences {
+                        break;
                     }
-                    Ok(e) => error!(
-                        "[2/2] {:05.2}% [{:05}/{}] Failed downloading {} {} {}",
-                        100.0 * count as f32 / total as f32,
-                        count,
-                        total,
-                        media.id,
-                        media.url,
-                        e
-                    ),
-                    Err(e) => error!(
-                        "[2/2] {:05.2}% [{:05}/{}] Failed downloading {} {} {}",
-                        100.0 * count as f32 / total as f32,
-                        count,
-                        total,
-                        media.id,
-                        media.url,
-                        e
-                    ),
                 }
-            }));
+            }
         }
 
         if len < chunk_size {
@@ -527,7 +518,9 @@ pub async fn main() -> Result<()> {
     let config = Config::from_figment(&rocket::Config::figment());
 
     let log_dir = config.storage.data_path.join("logs");
-    create_dir_all(&log_dir).expect("Failed to create log directory");
+    create_dir_all(&log_dir)
+        .await
+        .expect("Failed to create log directory");
 
     let module = vec![String::from(module_path!())];
     let filename = format!("{}", Local::now().format("%Y-%m-%d--%H-%M-%S.log"));
