@@ -1,0 +1,129 @@
+{% extends "base.html" %}
+
+{% block extracss %}
+<style>
+    .cell {
+        border: solid;
+        border-width: 1px;
+        border-radius: 5px;
+        padding: 0.5em;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<section class="section">
+    <h1 class="title is-2">Espèces {{ offset + 1 }} à {{ offset + limit + 1 }} sur {{ species_count }}</h1>
+    <div class="columns">
+        <div class="column is-4 is-offset-4">
+            <nav class="pagination is-centered" role="navigation" aria-label="pagination">
+                {% if current_page > 1 %}
+                <a href="/species/{{ current_page - 1 }}" class="pagination-previous">Previous page</a>
+                {% endif %}
+
+                {% if max_page > current_page %}
+                <a href="/species/{{ current_page + 1}}" class="pagination-next">Next page</a>
+                {% endif %}
+                <ul class="pagination-list">
+
+                    {% if current_page >= 2 %}
+                    <li><a href="/species/1" class="pagination-link" aria-label="Goto page 1">1</a></li>
+                    {% endif %}
+                    {% if current_page >= 4 %}
+                    <li><span class="pagination-ellipsis">&hellip;</span></li>
+                    {% endif %}
+                    {% if current_page >= 3 %}
+                    <li><a href="/species/{{ current_page - 1 }}" class="pagination-link" aria-label="Goto page {{ current_page - 1 }}">{{ current_page - 1 }}</a></li>
+                    {% endif %}
+
+                    <li>
+                        <a class="pagination-link is-current" aria-label="Page {{ current_page }}" aria-current="page {{ current_page }}">
+                            {{ current_page }}
+                        </a>
+                    </li>
+
+                    {% if max_page > current_page %}
+                    <li><a href="/species/{{ current_page + 1 }}" class="pagination-link" aria-label="Goto page {{ current_page + 1 }}">{{ current_page + 1 }}</a></li>
+                    {% endif %}
+
+                    {% if max_page > current_page + 2 %}
+                    <li><span class="pagination-ellipsis">&hellip;</span></li>
+                    {% endif %}
+
+                    {% if max_page > current_page + 1 %}
+                    <li><a href="/species/{{ max_page }}" class="pagination-link" aria-label="Goto page {{ max_page }}">{{ max_page }}</a></li>
+                    {% endif %}
+                </ul>
+            </nav>
+        </div>
+    </div>
+
+    <div class="fixed-grid has-8-cols">
+        <div class="grid">
+        {% for specie in species %}
+            <a href="/species/key/{{ specie.species_key }}" class="cell">
+                <h2 class="title is-5 has-text-link has-text-centered mb-1 is-italic">
+                    {{ specie.pretty_name }}
+                </h2>
+                <h3 class="title is-6 has-text-link, has-text-centered mb-1">
+                    {{ specie.pretty_finder }}
+                </h3>
+                <div class="is-italic has-text-link has-text-centered">
+                    {{ specie.occurrence_count }} occurrences
+                </div>
+                <div class="is-italic has-text-link has-text-centered">
+                    {{ specie.media_count }} medias
+                </div>
+                <div class="has-text-centered">
+                    <img class="blur" src="/data/medias/{{ specie.media_path }}">
+                </div>
+            </a>
+        {% endfor %}
+        </div>
+    </div>
+
+    <div class="columns">
+        <div class="column is-4 is-offset-4">
+            <nav class="pagination is-centered" role="navigation" aria-label="pagination">
+                {% if current_page > 1 %}
+                <a href="/species/{{ current_page - 1 }}" class="pagination-previous">Previous page</a>
+                {% endif %}
+
+                {% if max_page > current_page %}
+                <a href="/species/{{ current_page + 1}}" class="pagination-next">Next page</a>
+                {% endif %}
+                <ul class="pagination-list">
+
+                    {% if current_page >= 2 %}
+                    <li><a href="/species/1" class="pagination-link" aria-label="Goto page 1">1</a></li>
+                    {% endif %}
+                    {% if current_page >= 4 %}
+                    <li><span class="pagination-ellipsis">&hellip;</span></li>
+                    {% endif %}
+                    {% if current_page >= 3 %}
+                    <li><a href="/species/{{ current_page - 1 }}" class="pagination-link" aria-label="Goto page {{ current_page - 1 }}">{{ current_page - 1 }}</a></li>
+                    {% endif %}
+
+                    <li>
+                        <a class="pagination-link is-current" aria-label="Page {{ current_page }}" aria-current="page {{ current_page }}">
+                            {{ current_page }}
+                        </a>
+                    </li>
+
+                    {% if max_page > current_page %}
+                    <li><a href="/species/{{ current_page + 1 }}" class="pagination-link" aria-label="Goto page {{ current_page + 1 }}">{{ current_page + 1 }}</a></li>
+                    {% endif %}
+
+                    {% if max_page > current_page + 2 %}
+                    <li><span class="pagination-ellipsis">&hellip;</span></li>
+                    {% endif %}
+
+                    {% if max_page > current_page + 1 %}
+                    <li><a href="/species/{{ max_page }}" class="pagination-link" aria-label="Goto page {{ max_page }}">{{ max_page }}</a></li>
+                    {% endif %}
+                </ul>
+            </nav>
+        </div>
+    </div>
+</section>
+{% endblock content %}

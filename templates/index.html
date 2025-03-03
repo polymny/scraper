@@ -1,40 +1,8 @@
 {% extends "base.html" %}
 
-{% block extracss %}
-<style>
-    .cell {
-        border: solid;
-        border-width: 1px;
-        border-radius: 5px;
-        padding: 0.5em;
-    }
-</style>
-{% endblock %}
-
 {% block content %}
 <section class="section">
-    <div class="fixed-grid has-8-cols">
-        <div class="grid">
-        {% for specie in species %}
-            <a href="/{{ specie.species_key }}" class="cell">
-                <h2 class="title is-5 has-text-link has-text-centered mb-1 is-italic">
-                    {{ specie.pretty_name }}
-                </h2>
-                <h3 class="title is-6 has-text-link, has-text-centered mb-1">
-                    {{ specie.pretty_finder }}
-                </h3>
-                <div class="is-italic has-text-link has-text-centered">
-                    {{ specie.occurrence_count }} occurrences
-                </div>
-                <div class="is-italic has-text-link has-text-centered">
-                    {{ specie.media_count }} medias
-                </div>
-                <div class="has-text-centered">
-                    <img class="blur" src="/data/medias/{{ specie.media_path }}">
-                </div>
-            </a>
-        {% endfor %}
-        </div>
-    </div>
+    <h1 class="title is-1">Scraper</h1>
+    <a href="/species/list/1">Voir les espèces</a>
 </section>
 {% endblock content %}

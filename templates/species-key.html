@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+
+{% block extracss %}
+<style>
+    .cell {
+        border: solid;
+        border-width: 1px;
+        border-radius: 5px;
+        padding: 0.5em;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<section class="section">
+    <h1 class="title is-2">{{ species.pretty_name }}</h1>
+    <h2 class="title is-3">{{ medias | length }} medias</h2>
+
+    <div class="fixed-grid has-8-cols">
+        <div class="grid">
+        {% for media in medias %}
+        <a href="/media/{{ media.path | replace(from="_", to="/") | split(pat=".") | slice(end=-1) | join(sep=".") }}" class="cell">
+                <div class="has-text-centered">
+                    <img class="blur" src="/data/medias/{{ media.path }}">
+                </div>
+            </a>
+        {% endfor %}
+        </div>
+    </div>
+</section>
+{% endblock content %}
