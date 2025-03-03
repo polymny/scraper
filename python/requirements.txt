@@ -1,0 +1,2 @@
+ultralytics==8.3.82
+platformdirs==4.3.6

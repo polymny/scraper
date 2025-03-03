@@ -7,6 +7,7 @@ import glob
 import json
 from pathlib import Path
 from json.decoder import JSONDecodeError
+import urllib
 
 import platformdirs
 

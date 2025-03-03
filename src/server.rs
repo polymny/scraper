@@ -1,15 +1,19 @@
 //! This module contains all the routes and utils for the webserver.
 
 use std::path::{Path, PathBuf};
+use std::process::exit;
 use std::result::Result as StdResult;
 
 use serde_json::json;
 
 use ergol::prelude::*;
 
+use tera::{Context, Tera};
+
 use rocket::fairing::AdHoc;
 use rocket::fs::NamedFile;
-use rocket::{self, Ignite, Rocket};
+use rocket::response::content::RawHtml;
+use rocket::{self, Ignite, Rocket, State as S};
 
 use rocket_dyn_templates::{context, Template};
 
@@ -18,11 +22,11 @@ use crate::db::Media;
 use crate::db::Species;
 use crate::logger::LogFairing;
 use crate::utils::{pretty_finder, pretty_name};
-use crate::Db;
+use crate::{Db, Result};
 
 /// Index route of our application.
 #[get("/")]
-pub async fn index(db: Db) -> Template {
+pub async fn index(tera: &S<Tera>, db: Db) -> Result<RawHtml<String>> {
     // Beautiful sql request
     let sql = r#"
     SELECT
@@ -84,7 +88,10 @@ pub async fn index(db: Db) -> Template {
         })
         .collect::<Vec<_>>();
 
-    Template::render("index", context! { species: species })
+    Ok(RawHtml(tera.render(
+        "index.html",
+        &Context::from_serialize(json!({ "species": species }))?,
+    )?))
 }
 
 /// Route for visualising a media.
@@ -118,8 +125,10 @@ async fn static_files(file: PathBuf) -> Option<NamedFile> {
 
 /// Route for scraped data.
 #[get("/data/<file..>")]
-async fn data_files(file: PathBuf) -> Option<NamedFile> {
-    NamedFile::open(Path::new("data/").join(file)).await.ok()
+async fn data_files(config: &S<Config>, file: PathBuf) -> Option<NamedFile> {
+    NamedFile::open(config.storage.data_path.join(file))
+        .await
+        .ok()
 }
 
 /// Starts the web server.
@@ -134,6 +143,17 @@ pub async fn serve() -> StdResult<Rocket<Ignite>, rocket::Error> {
             let config = Config::from_rocket(&rocket);
             let pool = ergol::pool(&config.databases.database.url, 32).unwrap();
             rocket.manage(pool)
+        }))
+        .attach(AdHoc::on_ignite("Tera", |rocket| async move {
+            let mut tera = match Tera::new("templates/**/*.html") {
+                Ok(t) => t,
+                Err(e) => {
+                    error!("while parsing tera templates: {}", e);
+                    exit(1);
+                }
+            };
+            tera.autoescape_on(vec![".html"]);
+            rocket.manage(tera)
         }))
         .attach(LogFairing)
         .mount("/", routes![index, media, static_files, data_files,])

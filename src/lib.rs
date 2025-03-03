@@ -30,6 +30,7 @@ use tokio::task::JoinHandle;
 
 use rocket::http::Status;
 use rocket::request::{FromRequest, Outcome, Request};
+use rocket::response::{self, Responder};
 use rocket::State;
 
 use ergol::deadpool::managed::Object;
@@ -73,6 +74,9 @@ pub enum Error {
     /// The species was not found on GBIF.
     SpeciesNotFound(String),
 
+    /// An error while rendering a template.
+    TeraError(tera::Error),
+
     /// Failed to initialize cropper.
     InitializeCropperFailed,
 
@@ -100,7 +104,15 @@ impl fmt::Display for Error {
             Error::InitializeCropperFailed => write!(f, "error initializing cropper"),
             Error::RocketError(e) => write!(f, "error with rocket: {}", e),
             Error::InternalServerError => write!(f, "internal server error"),
+            Error::TeraError(e) => write!(f, "error while rendering template: {}", e),
         }
+    }
+}
+
+impl<'r, 's: 'r> Responder<'r, 's> for Error {
+    fn respond_to(self, request: &'r Request) -> response::Result<'s> {
+        error!("{}", self);
+        Status::InternalServerError.respond_to(request)
     }
 }
 
@@ -134,6 +146,12 @@ impl From<serde_json::Error> for Error {
 impl From<rocket::Error> for Error {
     fn from(error: rocket::Error) -> Error {
         Error::RocketError(error)
+    }
+}
+
+impl From<tera::Error> for Error {
+    fn from(error: tera::Error) -> Error {
+        Error::TeraError(error)
     }
 }
 
