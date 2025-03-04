@@ -401,6 +401,14 @@ pub async fn scrap(
                     let config = config.clone();
                     let sender = cropper.as_ref().map(|x| x.1.clone());
 
+                    if media.status_code.is_some() {
+                        if occurrences.len() > min_occurrences {
+                            break;
+                        } else {
+                            continue;
+                        }
+                    }
+
                     let _ = semaphore.acquire().await.unwrap();
 
                     // Remove finished handles

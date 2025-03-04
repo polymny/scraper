@@ -405,10 +405,8 @@ impl Media {
         db: &Q,
     ) -> Result<i32> {
         if let Some(status_code) = self.status_code {
-            if 200 <= status_code && status_code < 400 {
-                // Skip download
-                return Ok(299);
-            }
+            // Skip download
+            return Ok(status_code);
         }
 
         let occurrence = self.occurrence(db).await?;
@@ -443,7 +441,7 @@ impl Media {
         storage: &Storage,
         db: &Q,
     ) -> Result<i32> {
-        let mut retries = 3;
+        let mut retries = 0;
 
         let (code, target_local) = loop {
             let download = self
