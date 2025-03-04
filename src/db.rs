@@ -79,7 +79,7 @@ impl IgnoredSpecies {
 
 /// A species that is registered in the database.
 #[ergol]
-#[derive(Serialize)]
+#[derive(Clone, Serialize)]
 pub struct Species {
     /// Id of the row in the database.
     #[id]

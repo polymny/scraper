@@ -25,7 +25,7 @@ use chrono::prelude::*;
 
 use tokio::fs::create_dir_all;
 use tokio::sync::mpsc::unbounded_channel;
-use tokio::sync::Semaphore;
+use tokio::sync::{OnceCell, Semaphore};
 use tokio::task::JoinHandle;
 
 use rocket::http::Status;
@@ -40,9 +40,11 @@ use ergol::Pool;
 
 use crate::config::{Config, BLACKLISTED_DATASET};
 use crate::cropper::Cropper;
-use crate::db::{Media, Species};
+use crate::db::{Media, Occurrence, Species};
 use crate::logger::Log;
 use crate::taxref::{Entry, Taxon};
+
+static SEMAPHORE: OnceCell<Semaphore> = OnceCell::const_new();
 
 /// The error type of this library.
 #[derive(Debug)]
@@ -364,9 +366,11 @@ pub async fn scrap(
 
     // Count medias to download for showing progress
     let mut offset = 0;
-    let chunk_size = 1000;
+    let chunk_size = 100000;
 
-    let semaphore = Semaphore::new(config.jobs);
+    let semaphore = SEMAPHORE
+        .get_or_init(async || Semaphore::new(config.jobs))
+        .await;
 
     let mut handles = vec![];
 
@@ -380,7 +384,7 @@ pub async fn scrap(
 
         let len = species.len();
 
-        for (index, species) in species.iter().enumerate() {
+        for (index, species) in species.into_iter().enumerate() {
             let occurrences = species.occurrences(&db).await?;
 
             let species_progress = 100.0 * (index as f32) / len as f32;
@@ -392,52 +396,81 @@ pub async fn scrap(
                 species.valid_name,
             );
 
-            for occurrence in &occurrences {
-                let medias = occurrence.medias(&db).await?;
+            // Find occurrences and medias for species
+            let sql = r#"
+                SELECT
+                    DISTINCT ON (occurrences.id)
+                    occurrences.*,
+                    medias.*
+                FROM
+                    speciess,
+                    medias,
+                    occurrences
+                WHERE
+                    speciess.id = occurrences.species AND
+                    medias.occurrence = occurrences.id AND
+                    occurrences.dataset_key != $1 AND
+                    speciess.id = $2
+                ORDER BY
+                    occurrences.id,
+                    medias.id
+                ;
+            "#;
 
-                for media in medias {
-                    let pool = pool.clone();
-                    let client = client.clone();
-                    let config = config.clone();
-                    let sender = cropper.as_ref().map(|x| x.1.clone());
+            let rows = db
+                .client()
+                .query(sql, &[&BLACKLISTED_DATASET, &species.id])
+                .await?;
 
-                    if media.status_code.is_some() {
-                        if occurrences.len() > min_occurrences {
-                            break;
-                        } else {
-                            continue;
-                        }
-                    }
+            for row in rows {
+                let occurrence = Occurrence::from_row(&row);
 
-                    let _ = semaphore.acquire().await.unwrap();
+                // 4 is the number of fields in the occurrence table... I know it's ugly :'(
+                let media = Media::from_row_with_offset(&row, 4);
 
-                    // Remove finished handles
-                    handles.retain(|x: &JoinHandle<_>| !x.is_finished());
-
-                    handles.push(tokio::spawn(async move {
-                        let mut media = media;
-                        let db = Db::from_pool(pool).await.unwrap();
-                        let result = media.download(&client, &config.storage, &db).await;
-
-                        match result {
-                            Ok(c) if 200 <= c && c < 400 => {
-                                // Ask cropper to crop media if necessary
-                                if let Some(sender) = sender {
-                                    sender.send(Some(media.id)).unwrap();
-                                }
-                            }
-
-                            Ok(c) if c == 299 => (),
-                            Ok(e) => error!("Failed downloading {} {} {}", media.id, media.url, e),
-                            Err(e) => error!("Failed downloading {} {} {}", media.id, media.url, e),
-                        }
-                    }));
-
-                    // Only one media per occurrence if there are more than min_occurrences
+                if media.status_code.is_some() {
                     if occurrences.len() > min_occurrences {
                         break;
+                    } else {
+                        continue;
                     }
                 }
+
+                let pool = pool.clone();
+                let client = client.clone();
+                let config = config.clone();
+                let sender = cropper.as_ref().map(|x| x.1.clone());
+                let species = species.clone();
+                let permit = semaphore.acquire().await.unwrap();
+
+                // Remove finished handles
+                handles.retain(|x: &JoinHandle<_>| !x.is_finished());
+
+                handles.push(tokio::spawn(async move {
+                    let mut media = media;
+                    let db = Db::from_pool(pool).await.unwrap();
+
+                    // trace!("Downloading media {}", media.id);
+                    let result = media
+                        .download_with_info(&occurrence, &species, &client, &config.storage, &db)
+                        .await;
+
+                    match result {
+                        Ok(c) if 200 <= c && c < 400 => {
+                            // Ask cropper to crop media if necessary
+                            if let Some(sender) = sender {
+                                sender.send(Some(media.id)).unwrap();
+                            }
+                        }
+
+                        Ok(c) if c == 299 => (),
+                        Ok(e) => error!("Failed downloading {} {} {}", media.id, media.url, e),
+                        Err(e) => error!("Failed downloading {} {} {}", media.id, media.url, e),
+                    }
+
+                    // Dropping the permit here moves the permit into the async block
+                    drop(permit);
+                }));
             }
         }
 
@@ -448,12 +481,15 @@ pub async fn scrap(
         offset += chunk_size;
     }
 
+    info!("Reached end of scraping, waiting for remaining downloads");
+
     for handle in handles {
         handle.await.unwrap();
     }
 
     // Finalize cropper
     if let Some((handle, sender)) = cropper {
+        info!("Scraping finished, waiting for cropping");
         sender.send(None).unwrap();
         handle.await.unwrap();
     }
