@@ -149,7 +149,15 @@ def main(tmp_root):
                 images = list(map(lambda x: x.path, batch))
                 tmp_dir = os.path.join(tmp_root, str(batch_counter))
                 os.makedirs(tmp_dir, exist_ok=True)
-                predicts = model.predict(images, save_crop=True, show=False, save=False, save_txt=False, max_det=1, project=tmp_dir)
+                try:
+                    predicts = model.predict(images, save_crop=True, show=False, save=False, save_txt=False, max_det=1, project=tmp_dir)
+                except Exception as e:
+                    eprint(f"python error: failed to crop batch: {e}")
+
+                    # Send empty batch
+                    print(batch_response.to_json(), flush=True)
+                    batch = []
+                    batch_counter += 1
 
                 for index, (request, predict) in enumerate(zip(batch, predicts)):
 
