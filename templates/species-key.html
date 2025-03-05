@@ -8,24 +8,204 @@
         border-radius: 5px;
         padding: 0.5em;
     }
+
+    .cell-cropped {
+        border-color: green;
+    }
+
+    .cell-not-cropped {
+        border-color: red;
+    }
 </style>
-{% endblock %}
+{% endblock extracss %}
 
 {% block content %}
 <section class="section">
     <h1 class="title is-2">{{ species.pretty_name }}</h1>
-    <h2 class="title is-3">{{ medias | length }} medias</h2>
+    <h2 class="title is-5">{{ medias_len }} medias, {{ medias_cropped_len }} cropped</h2>
+
+    <nav class="breadcrumb has-succeeds-separator" aria-label="breadcrumbs">
+        <ul>
+            <li><a href="/species/reign/{{ species.reign }}/1">{{ species.reign }}</a></li>
+            <li><a href="/species/phylum/{{ species.phylum }}/1">{{ species.phylum }}</a></li>
+            <li><a href="/species/class/{{ species.class }}/1">{{ species.class }}</a></li>
+            <li><a href="/species/order/{{ species.order }}/1">{{ species.order }}</a></li>
+            <li><a href="/species/family/{{ species.family }}/1">{{ species.family }}</a></li>
+            <li><a href="/species/genus/{{ species.genus }}/1">{{ species.genus }}</a></li>
+            <li><a href="/species/species/{{ species.valid_name }}/1">{{ species.valid_name }}</a></li>
+        </ul>
+    </nav>
+
+    <div class="columns">
+        <div class="column is-4 is-offset-4">
+            <nav class="pagination is-centered" role="navigation" aria-label="pagination">
+                {% if current_page > 1 %}
+                <a href="{{ current_page - 1 }}" class="pagination-previous">Previous page</a>
+                {% endif %}
+
+                {% if max_page > current_page %}
+                <a href="{{ current_page + 1}}" class="pagination-next">Next page</a>
+                {% endif %}
+                <ul class="pagination-list">
+
+                    {% if current_page >= 2 %}
+                    <li><a href="1" class="pagination-link" aria-label="Goto page 1">1</a></li>
+                    {% endif %}
+                    {% if current_page >= 4 %}
+                    <li><span class="pagination-ellipsis">&hellip;</span></li>
+                    {% endif %}
+                    {% if current_page >= 3 %}
+                    <li><a href="{{ current_page - 1 }}" class="pagination-link" aria-label="Goto page {{ current_page - 1 }}">{{ current_page - 1 }}</a></li>
+                    {% endif %}
+
+                    <li>
+                        <a class="pagination-link is-current" aria-label="Page {{ current_page }}" aria-current="page {{ current_page }}">
+                            {{ current_page }}
+                        </a>
+                    </li>
+
+                    {% if max_page > current_page %}
+                    <li><a href="{{ current_page + 1 }}" class="pagination-link" aria-label="Goto page {{ current_page + 1 }}">{{ current_page + 1 }}</a></li>
+                    {% endif %}
+
+                    {% if max_page > current_page + 2 %}
+                    <li><span class="pagination-ellipsis">&hellip;</span></li>
+                    {% endif %}
+
+                    {% if max_page > current_page + 1 %}
+                    <li><a href="{{ max_page }}" class="pagination-link" aria-label="Goto page {{ max_page }}">{{ max_page }}</a></li>
+                    {% endif %}
+                </ul>
+            </nav>
+        </div>
+    </div>
 
     <div class="fixed-grid has-8-cols">
         <div class="grid">
         {% for media in medias %}
-        <a href="/media/{{ media.path | replace(from="_", to="/") | split(pat=".") | slice(end=-1) | join(sep=".") }}" class="cell">
+            <a href="/media/{{ media.path | replace(from="_", to="/") | split(pat=".") | slice(end=-1) | join(sep=".") }}" class="cell {% if media.x %}cell-cropped{% else %}cell-not-cropped{% endif %}">
                 <div class="has-text-centered">
-                    <img class="blur" src="/data/medias/{{ media.path }}">
+                    <canvas
+                        width=0
+                        height=0
+                        class="blur canvas"
+                        data-src="/data/medias/{{ media.path }}"
+                        {% if media.x %}data-cropped="true"{% else %}data-cropped="false"{% endif %}
+                        {% if media.x %}data-x="{{ media.x }}"{% endif %}
+                        {% if media.y %}data-y="{{ media.y }}"{% endif %}
+                        {% if media.width %}data-width="{{ media.width }}"{% endif %}
+                        {% if media.height %}data-height="{{ media.height }}"{% endif %}
+                    >
+                    </canvas>
                 </div>
             </a>
         {% endfor %}
         </div>
     </div>
+
+    <div class="columns">
+        <div class="column is-4 is-offset-4">
+            <nav class="pagination is-centered" role="navigation" aria-label="pagination">
+                {% if current_page > 1 %}
+                <a href="{{ current_page - 1 }}" class="pagination-previous">Previous page</a>
+                {% endif %}
+
+                {% if max_page > current_page %}
+                <a href="{{ current_page + 1}}" class="pagination-next">Next page</a>
+                {% endif %}
+                <ul class="pagination-list">
+
+                    {% if current_page >= 2 %}
+                    <li><a href="1" class="pagination-link" aria-label="Goto page 1">1</a></li>
+                    {% endif %}
+                    {% if current_page >= 4 %}
+                    <li><span class="pagination-ellipsis">&hellip;</span></li>
+                    {% endif %}
+                    {% if current_page >= 3 %}
+                    <li><a href="{{ current_page - 1 }}" class="pagination-link" aria-label="Goto page {{ current_page - 1 }}">{{ current_page - 1 }}</a></li>
+                    {% endif %}
+
+                    <li>
+                        <a class="pagination-link is-current" aria-label="Page {{ current_page }}" aria-current="page {{ current_page }}">
+                            {{ current_page }}
+                        </a>
+                    </li>
+
+                    {% if max_page > current_page %}
+                    <li><a href="{{ current_page + 1 }}" class="pagination-link" aria-label="Goto page {{ current_page + 1 }}">{{ current_page + 1 }}</a></li>
+                    {% endif %}
+
+                    {% if max_page > current_page + 2 %}
+                    <li><span class="pagination-ellipsis">&hellip;</span></li>
+                    {% endif %}
+
+                    {% if max_page > current_page + 1 %}
+                    <li><a href="{{ max_page }}" class="pagination-link" aria-label="Goto page {{ max_page }}">{{ max_page }}</a></li>
+                    {% endif %}
+                </ul>
+            </nav>
+        </div>
+    </div>
 </section>
+
 {% endblock content %}
+
+{% block extrajs %}
+<script>
+    async function loadImage(src) {
+        return new Promise((resolve, reject) => {
+            let img = new Image()
+            img.onload = () => resolve(img)
+            img.onerror = reject
+            img.src = src
+        })
+    }
+
+    async function paintImage(canvas) {
+        let ctx = canvas.getContext('2d');
+        let src = canvas.getAttribute('data-src');
+        let cropped = canvas.getAttribute('data-cropped') === 'true';
+
+        let img = await loadImage(src);
+        let width = canvas.parentElement.clientWidth;
+
+        canvas.width = width;
+        canvas.height = width * img.height / img.width;
+
+
+        ctx.drawImage(img, 0, 0, img.width, img.height, 0, 0, canvas.width, canvas.height);
+
+        if (cropped) {
+            let scaleX = img.width / canvas.width;
+            let scaleY = img.height / canvas.height;
+
+            let x = parseFloat(canvas.getAttribute('data-x'));
+            let y = parseFloat(canvas.getAttribute('data-y'));
+            let width = parseFloat(canvas.getAttribute('data-width'));
+            let height = parseFloat(canvas.getAttribute('data-height'));
+
+            ctx.strokeStyle = "red";
+            ctx.lineWidth = 5;
+            ctx.rect(
+                (x - width / 2) / scaleX,
+                (y - height / 2) / scaleY,
+                width / scaleX,
+                height / scaleY,
+            );
+            ctx.stroke();
+        }
+    }
+
+    async function main() {
+        for (let elt of document.getElementsByClassName('canvas')) {
+            try{
+                await paintImage(elt);
+            } catch (e) {
+
+            }
+        }
+    }
+
+    main();
+</script>
+{% endblock extrajs %}

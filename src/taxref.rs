@@ -7,6 +7,8 @@ use std::path::PathBuf;
 use std::result::Result as StdResult;
 use std::str::FromStr;
 
+use rocket::request::FromParam;
+
 use crate::utils;
 use crate::{Error, Result};
 
@@ -59,7 +61,31 @@ pub enum Taxon {
     Species,
 }
 
+impl Taxon {
+    /// Returns a string version of the taxon.
+    pub fn to_str(self) -> &'static str {
+        match self {
+            Taxon::Reign => "reign",
+            Taxon::Phylum => "phylum",
+            Taxon::Class => "class",
+            Taxon::Order => "order",
+            Taxon::Family => "family",
+            Taxon::Genus => "genus",
+            Taxon::Species => "species",
+        }
+    }
+}
+
+impl<'a> FromParam<'a> for Taxon {
+    type Error = NoSuchTaxon;
+
+    fn from_param(param: &'a str) -> StdResult<Taxon, Self::Error> {
+        param.parse::<Taxon>()
+    }
+}
+
 /// An error that occured while parsing a taxon.
+#[derive(Debug)]
 pub struct NoSuchTaxon(String);
 
 impl fmt::Display for NoSuchTaxon {
