@@ -83,13 +83,13 @@
     <div class="fixed-grid has-8-cols">
         <div class="grid">
         {% for media in medias %}
-            <a href="/media/{{ media.path | replace(from="_", to="/") | split(pat=".") | slice(end=-1) | join(sep=".") }}" class="cell {% if media.x %}cell-cropped{% else %}cell-not-cropped{% endif %}">
+            <a href="/media/{{ media.path | safe | replace(from="_", to="/") | split(pat=".") | slice(end=-1) | join(sep=".") }}" class="cell {% if media.x %}cell-cropped{% else %}cell-not-cropped{% endif %}">
                 <div class="has-text-centered">
                     <canvas
                         width=0
                         height=0
                         class="blur canvas"
-                        data-src="/data/medias/{{ media.path }}"
+                        data-src="/data/medias/{{ media.path | safe }}"
                         {% if media.x %}data-cropped="true"{% else %}data-cropped="false"{% endif %}
                         {% if media.x %}data-x="{{ media.x }}"{% endif %}
                         {% if media.y %}data-y="{{ media.y }}"{% endif %}

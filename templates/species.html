@@ -88,7 +88,7 @@
                     {{ specie.media_count }} medias
                 </div>
                 <div class="has-text-centered">
-                    <img class="blur" src="/data/medias/{{ specie.media_path }}">
+                    <img class="blur" src="/data/medias/{{ specie.media_path | safe }}">
                 </div>
             </a>
         {% endfor %}

@@ -270,13 +270,17 @@ pub async fn species_by_valid_name(
             speciess.valid_name = $1 AND
             occurrences.species = speciess.id AND
             medias.occurrence = occurrences.id AND
+            occurrences.dataset_key != $2 AND
             200 <= medias.status_code AND medias.status_code < 400
         ORDER BY
             medias.id
         ;
     "#;
 
-    let medias = db.client().query(sql, &[&valid_name]).await?;
+    let medias = db
+        .client()
+        .query(sql, &[&valid_name, &BLACKLISTED_DATASET])
+        .await?;
     let medias_len = medias.len();
     let offset = (page - 1) as i64 * LIMIT;
     let medias = medias.iter().map(Media::from_row).collect::<Vec<_>>();
