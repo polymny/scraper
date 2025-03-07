@@ -1,0 +1,72 @@
+{% extends "base.html" %}
+
+{% block extracss %}
+<style>
+.plot-container {
+	filter: invert(75%) hue-rotate(180deg);
+}
+</style>
+{% endblock extracss %}
+
+{% block content %}
+<section class="section">
+    <h1 class="title is-1">Scraper</h1>
+    <div id="sunburst"></div>
+</section>
+{% endblock content %}
+
+{% block extrajs %}
+<script src="/static/plotly.min.js"></script>
+<script>
+    let species = [
+        {% for species in species %}
+            "{{ species.valid_name }}",
+        {% endfor %}
+        {% for genus in genuses %}
+            "{{ genus[0] }}",
+        {% endfor %}
+    ];
+
+    let parents = [
+        {% for species in species %}
+            "{{ species.genus }}",
+        {% endfor %}
+        {% for genus in genuses %}
+            "{{ genus[1] }}",
+        {% endfor %}
+    ];
+
+    let values = [
+        {% for species in species %}
+            {{ species.media_count }},
+        {% endfor %}
+        {% for genus in genuses %}
+            {{ 1 }},
+        {% endfor %}
+    ];
+
+    var data = [{
+        type: "sunburst",
+        labels: species,
+        parents: parents,
+        values:  values,
+        marker: {line: {width: 2}},
+    }];
+
+
+    var layout = {
+        margin: {l: 0, r: 0, b: 0, t: 0},
+        width: 500,
+        height: 500,
+        paper_bgcolor: 'rgba(255,255,255, 0)',
+    };
+
+    let sunburst = document.getElementById('sunburst');
+    Plotly.newPlot(sunburst, data, layout);
+    sunburst.on('plotly_click', (e) => {
+        if (e.points[0].currentPath.split('/').length === 3) {
+            window.open('/species/species/' + e.points[0].label + '/1', '_blank');
+        }
+    });
+</script>
+{% endblock extrajs %}

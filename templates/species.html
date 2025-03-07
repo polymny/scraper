@@ -31,12 +31,13 @@
         <div class="column is-4 is-offset-4">
             <nav class="pagination is-centered" role="navigation" aria-label="pagination">
                 {% if current_page > 1 %}
-                <a href="{{ current_page - 1 }}" class="pagination-previous">Previous page</a>
+                <a href="{{ current_page - 1 }}" class="pagination-previous">&lt;</a>
                 {% endif %}
 
                 {% if max_page > current_page %}
-                <a href="{{ current_page + 1}}" class="pagination-next">Next page</a>
+                <a href="{{ current_page + 1}}" class="pagination-next">&gt;</a>
                 {% endif %}
+
                 <ul class="pagination-list">
 
                     {% if current_page >= 2 %}
@@ -99,11 +100,11 @@
         <div class="column is-4 is-offset-4">
             <nav class="pagination is-centered" role="navigation" aria-label="pagination">
                 {% if current_page > 1 %}
-                <a href="{{ current_page - 1 }}" class="pagination-previous">Previous page</a>
+                <a href="{{ current_page - 1 }}" class="pagination-previous">&lt;</a>
                 {% endif %}
 
                 {% if max_page > current_page %}
-                <a href="{{ current_page + 1}}" class="pagination-next">Next page</a>
+                <a href="{{ current_page + 1}}" class="pagination-next">&gt;</a>
                 {% endif %}
                 <ul class="pagination-list">
 

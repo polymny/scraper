@@ -302,6 +302,130 @@ pub async fn species_by_valid_name(
     )
 }
 
+/// Test route for plotly.
+#[get("/plotly")]
+pub async fn plotly(tera: &S<Tera>, db: Db) -> Result<Html> {
+    // Beautiful sql request
+    let sql = r#"
+        SELECT
+            subquery.species_id,
+            subquery.species_key,
+            subquery.reign,
+            subquery.phylum,
+            subquery.class,
+            subquery.order,
+            subquery.family,
+            subquery.genus,
+            subquery.valid_name,
+            subquery.media_path,
+            COUNT(DISTINCT occurrences.id),
+            COUNT(medias.id)
+        FROM (
+            SELECT
+                DISTINCT ON (speciess.id)
+                speciess.id AS species_id,
+                speciess.reign AS reign,
+                speciess.phylum AS phylum,
+                speciess.class AS class,
+                speciess.order AS order,
+                speciess.family AS family,
+                speciess.genus AS genus,
+                speciess.valid_name AS valid_name,
+                speciess.species_key AS species_key,
+                medias.path AS media_path
+            FROM
+                speciess, occurrences, medias
+            WHERE
+                speciess.id = occurrences.species AND
+                occurrences.id = medias.occurrence AND
+                occurrences.dataset_key != $1 AND
+                200 <= medias.status_code AND medias.status_code < 400 AND
+                medias.path IS NOT NULL
+            ) AS subquery, occurrences, medias
+        WHERE
+            subquery.species_id = occurrences.species AND
+            occurrences.id = medias.occurrence AND
+            occurrences.dataset_key != $1 AND
+            200 <= medias.status_code AND medias.status_code < 400 AND
+            medias.path IS NOT NULL
+        GROUP BY
+            subquery.species_id,
+            subquery.reign,
+            subquery.phylum,
+            subquery.class,
+            subquery.order,
+            subquery.family,
+            subquery.genus,
+            subquery.valid_name,
+            subquery.species_key,
+            subquery.media_path
+        ORDER BY
+            subquery.reign,
+            subquery.phylum,
+            subquery.class,
+            subquery.order,
+            subquery.family,
+            subquery.genus,
+            subquery.valid_name
+        ;
+    "#;
+
+    let species = db
+        .client()
+        .query(sql, &[&BLACKLISTED_DATASET])
+        .await?
+        .into_iter()
+        .map(|x| {
+            let species_key = x.get::<usize, i64>(1);
+            let reign = x.get::<usize, String>(2);
+            let phylum = x.get::<usize, String>(3);
+            let class = x.get::<usize, String>(4);
+            let order = x.get::<usize, String>(5);
+            let family = x.get::<usize, String>(6);
+            let genus = x.get::<usize, String>(7);
+            let valid_name = x.get::<usize, String>(8);
+            let media_path = x.get::<usize, String>(9);
+            let occurrence_count = x.get::<usize, i64>(10);
+            let media_count = x.get::<usize, i64>(10);
+
+            json!({
+                "species_key": species_key,
+                "reign": reign,
+                "phylum": phylum,
+                "class": class,
+                "order": order,
+                "family": family,
+                "genus": genus,
+                "valid_name": valid_name,
+                "pretty_name": pretty_name(&valid_name),
+                "pretty_finder": pretty_finder(&valid_name),
+                "media_path": media_path,
+                "occurrence_count": occurrence_count,
+                "media_count": media_count,
+            })
+        })
+        .collect::<Vec<_>>();
+
+    let mut genuses = vec![];
+    let mut previous_genus = None;
+
+    for species in &species {
+        let current_genus = species.get("genus");
+        if previous_genus != Some(current_genus) {
+            genuses.push((current_genus, species.get("family")));
+            previous_genus = Some(current_genus);
+        }
+    }
+
+    tera.render_json(
+        "plotly.html",
+        json!({
+            "species": species,
+            "genuses": genuses,
+        }),
+    )
+}
+
 /// Route for visualising a media.
 #[get("/media/<species_key>/<occurrence_key>/<media_index>")]
 pub async fn media(
@@ -370,14 +494,7 @@ pub async fn serve() -> StdResult<Rocket<Ignite>, rocket::Error> {
         .attach(LogFairing)
         .mount(
             "/",
-            routes![
-                index,
-                species,
-                // species_by_key,
-                media,
-                static_files,
-                data_files,
-            ],
+            routes![index, species, plotly, media, static_files, data_files,],
         )
         .ignite()
         .await?

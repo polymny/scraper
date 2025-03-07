@@ -40,11 +40,11 @@
         <div class="column is-4 is-offset-4">
             <nav class="pagination is-centered" role="navigation" aria-label="pagination">
                 {% if current_page > 1 %}
-                <a href="{{ current_page - 1 }}" class="pagination-previous">Previous page</a>
+                <a href="{{ current_page - 1 }}" class="pagination-previous">&lt;</a>
                 {% endif %}
 
                 {% if max_page > current_page %}
-                <a href="{{ current_page + 1}}" class="pagination-next">Next page</a>
+                <a href="{{ current_page + 1}}" class="pagination-next">&gt;</a>
                 {% endif %}
                 <ul class="pagination-list">
 
@@ -107,11 +107,11 @@
         <div class="column is-4 is-offset-4">
             <nav class="pagination is-centered" role="navigation" aria-label="pagination">
                 {% if current_page > 1 %}
-                <a href="{{ current_page - 1 }}" class="pagination-previous">Previous page</a>
+                <a href="{{ current_page - 1 }}" class="pagination-previous">&lt;</a>
                 {% endif %}
 
                 {% if max_page > current_page %}
-                <a href="{{ current_page + 1}}" class="pagination-next">Next page</a>
+                <a href="{{ current_page + 1}}" class="pagination-next">&gt;</a>
                 {% endif %}
                 <ul class="pagination-list">
 
@@ -167,12 +167,6 @@
         let cropped = canvas.getAttribute('data-cropped') === 'true';
 
         let img = await loadImage(src);
-        let width = canvas.parentElement.clientWidth;
-
-        canvas.width = width;
-        canvas.height = width * img.height / img.width;
-
-
         ctx.drawImage(img, 0, 0, img.width, img.height, 0, 0, canvas.width, canvas.height);
 
         if (cropped) {
@@ -184,8 +178,20 @@
             let width = parseFloat(canvas.getAttribute('data-width'));
             let height = parseFloat(canvas.getAttribute('data-height'));
 
-            ctx.strokeStyle = "red";
-            ctx.lineWidth = 5;
+            ctx.beginPath();
+            ctx.strokeStyle = "black";
+            ctx.lineWidth = 2;
+            ctx.rect(
+                (x - width / 2) / scaleX - 2,
+                (y - height / 2) / scaleY - 2,
+                width / scaleX + 4,
+                height / scaleY + 4,
+            );
+            ctx.stroke();
+
+            ctx.beginPath();
+            ctx.strokeStyle = "white";
+            ctx.lineWidth = 2;
             ctx.rect(
                 (x - width / 2) / scaleX,
                 (y - height / 2) / scaleY,
@@ -197,7 +203,16 @@
     }
 
     async function main() {
-        for (let elt of document.getElementsByClassName('canvas')) {
+        let canvases = document.getElementsByClassName('canvas');
+
+        // Set canvases sizes synchronously
+        for (let canvas of canvases) {
+            let width = canvas.parentElement.clientWidth;
+            canvas.width = width;
+            canvas.height = width;
+        }
+
+        for (let elt of canvases) {
             try{
                 await paintImage(elt);
             } catch (e) {
