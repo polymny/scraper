@@ -257,7 +257,13 @@ impl Cropper {
 
         info!("Received response from python");
 
-        let response: Response = serde_json::from_str(&line)?;
+        let response: Response = match serde_json::from_str(&line) {
+            Ok(r) => r,
+            Err(e) => {
+                error!("failed to parse message from python: {}", e);
+                return Ok(());
+            }
+        };
 
         let batch = match response {
             Response::Ready => {

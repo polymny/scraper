@@ -166,6 +166,7 @@ def main(tmp_root):
                     print(batch_response.to_json(), flush=True)
                     batch = []
                     batch_counter += 1
+                    continue
 
                 for index, (request, predict) in enumerate(zip(batch, predicts)):
 

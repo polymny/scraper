@@ -517,7 +517,7 @@ async fn crop(config: &Config) -> Result<()> {
         .expect("Failed to create cropper");
 
     let mut offset: i64 = 0;
-    let chunk_size: i64 = 10 * config.batch_size as i64;
+    let chunk_size: i64 = 100 * config.batch_size as i64;
 
     let sql = r#"
         SELECT count(id)
