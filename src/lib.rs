@@ -548,7 +548,8 @@ async fn crop(config: &Config) -> Result<()> {
             SELECT *
             FROM medias
             WHERE path IS NOT NULL AND 200 <= status_code AND status_code < 400
-            OFFSET $1 LIMIT $2 ORDER BY id;
+            ORDER BY id
+            OFFSET $1 LIMIT $2;
         "#;
 
         let rows = db.client().query(sql, &[&offset, &chunk_size]).await?;
