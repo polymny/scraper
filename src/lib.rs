@@ -350,8 +350,9 @@ pub async fn scrap(
             .expect("Failed to connect to the database");
 
         let (tx, rx) = unbounded_channel();
-        let cropper =
-            Cropper::new(config.batch_size, config.clone(), db).expect("Failed to create cropper");
+        let cropper = Cropper::new(config.batch_size, config.clone(), db)
+            .await
+            .expect("Failed to create cropper");
 
         Some((cropper.run(rx), tx))
     } else {
@@ -499,7 +500,7 @@ pub async fn scrap(
     Ok(())
 }
 
-async fn crop(batch_size: usize, config: &Config) -> Result<()> {
+async fn crop(config: &Config) -> Result<()> {
     let pool =
         ergol::pool(&config.databases.database.url, 32).expect("Failed to connect to the database");
 
@@ -511,31 +512,61 @@ async fn crop(batch_size: usize, config: &Config) -> Result<()> {
         .await
         .expect("Failed to connect to the database");
 
-    let mut cropper =
-        Cropper::new(batch_size, config.clone(), db_clone).expect("Failed to create cropper");
+    let mut cropper = Cropper::new(config.batch_size, config.clone(), db_clone)
+        .await
+        .expect("Failed to create cropper");
 
-    let mut offset = 0;
-    let chunk_size = 100000;
+    let mut offset: i64 = 0;
+    let chunk_size: i64 = 10 * config.batch_size as i64;
+
+    let sql = r#"
+        SELECT count(id)
+        FROM medias
+        WHERE path IS NOT NULL AND 200 <= status_code AND status_code < 400 AND NOT cropped;
+    "#;
+
+    let mut done = 0;
+    let total_len = db
+        .client()
+        .query(sql, &[])
+        .await?
+        .get(0) // first row
+        .unwrap()
+        .get::<usize, i64>(0); // first col of first row
 
     loop {
-        use db::media;
-        let medias = Media::select()
-            .filter(media::to_download::eq(true).and(media::cropped::eq(false)))
-            .order_by(db::media::id::ascend())
-            .offset(offset)
-            .limit(chunk_size)
-            .execute(&db)
-            .await?;
+        info!(
+            "{:05.2}% [{}/{}] Start new SQL request (offset={}, limit={})",
+            100.0 * done as f32 / total_len as f32,
+            done,
+            total_len,
+            offset,
+            chunk_size
+        );
 
-        let len = medias.len();
+        let sql = r#"
+            SELECT *
+            FROM medias
+            WHERE path IS NOT NULL AND 200 <= status_code AND status_code < 400
+            OFFSET $1 LIMIT $2 ORDER BY id;
+        "#;
 
-        for media in medias {
-            if media.path.is_some() {
-                cropper.add_media(&media).await?;
+        let rows = db.client().query(sql, &[&offset, &chunk_size]).await?;
+
+        info!("SQL request done, received {} medias", rows.len());
+
+        for row in &rows {
+            let media = Media::from_row(row);
+
+            if media.cropped {
+                continue;
             }
+
+            cropper.add_media(&media).await?;
+            done += 1;
         }
 
-        if len < chunk_size {
+        if rows.len() < chunk_size as usize {
             break;
         }
 
@@ -617,7 +648,7 @@ pub async fn main() -> Result<()> {
         }
 
         "crop" => {
-            crop(128, &config).await?;
+            crop(&config).await?;
         }
 
         "serve" => {

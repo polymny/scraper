@@ -50,6 +50,17 @@ pub struct AddFileRequest {
     pub path: String,
 }
 
+/// A message from python.
+#[derive(Serialize, Deserialize)]
+#[serde(tag = "type", rename_all = "snake_case")]
+pub enum Response {
+    /// Python is ready to receive requests.
+    Ready,
+
+    /// Python sent a batch that was finished.
+    Batch(Batch),
+}
+
 /// A batch from python.
 #[derive(Serialize, Deserialize)]
 pub struct Batch {
@@ -134,7 +145,7 @@ pub struct Cropper {
 
 impl Cropper {
     /// Creates a new cropper.
-    pub fn new(batch_capacity: usize, config: Config, db: Db) -> Result<Cropper> {
+    pub async fn new(batch_capacity: usize, config: Config, db: Db) -> Result<Cropper> {
         let tmp_dir = config.storage.tmp_dir();
         let tmp_dir = tmp_dir
             .to_str()
@@ -168,14 +179,18 @@ impl Cropper {
             }
         });
 
-        Ok(Cropper {
+        let mut cropper = Cropper {
             stdin,
             stdout: BufReader::new(stdout),
             config,
             db,
             batch_size: 0,
             batch_capacity,
-        })
+        };
+
+        cropper.wait_python().await?;
+
+        Ok(cropper)
     }
 
     /// Asks python to crop a media, and trigger if batch size is reached..
@@ -242,7 +257,17 @@ impl Cropper {
 
         info!("Received response from python");
 
-        let batch: Batch = serde_json::from_str(&line)?;
+        let response: Response = serde_json::from_str(&line)?;
+
+        let batch = match response {
+            Response::Ready => {
+                info!("Python is ready");
+                return Ok(());
+            }
+
+            Response::Batch(b) => b,
+        };
+
         let mut t = self.db.transaction().await?;
         let mut failures = vec![];
 
