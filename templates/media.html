@@ -26,7 +26,19 @@
     <div class="columns">
         <div id="column" class="column is-4 is-offset-4">
             <div class="has-text-centered">
-                <canvas id="canvas" class=""></canvas>
+                <canvas
+                    id="canvas"
+                    width=0
+                    height=0
+                    class="blur canvas"
+                    data-src="/data/medias/{{ media.path | safe }}"
+                    {% if media.x %}data-cropped="true"{% else %}data-cropped="false"{% endif %}
+                    {% if media.x %}data-x="{{ media.x }}"{% endif %}
+                    {% if media.y %}data-y="{{ media.y }}"{% endif %}
+                    {% if media.width %}data-width="{{ media.width }}"{% endif %}
+                    {% if media.height %}data-height="{{ media.height }}"{% endif %}
+                >
+                </canvas>
             </div>
         </div>
     </div>
@@ -45,29 +57,50 @@
     }
 
     async function main() {
-        let img = await loadImage("/data/medias/{{ species_key }}/{{ occurrence_key }}_{{ media_id }}.jpg");
-        let width = document.getElementById('column').clientWidth;
         let canvas = document.getElementById('canvas');
+        let src = canvas.getAttribute('data-src');
+        let img = await loadImage(src);
+
+        let width = canvas.parentElement.clientWidth;
         canvas.width = width;
         canvas.height = width * img.height / img.width;
 
-        let scaleX = img.width / canvas.width;
-        let scaleY = img.height / canvas.height;
-
         let ctx = canvas.getContext('2d');
+        let cropped = canvas.getAttribute('data-cropped') === 'true';
+
         ctx.drawImage(img, 0, 0, img.width, img.height, 0, 0, canvas.width, canvas.height);
 
-        {% if media.x %}
-        ctx.strokeStyle = "red";
-        ctx.lineWidth = 5;
-        ctx.rect(
-            ({{ media.x }} - {{ media.width }} / 2) / scaleX,
-            ({{ media.y }} - {{ media.height }} / 2) / scaleY,
-            {{ media.width }} / scaleX,
-            {{ media.height }} / scaleY,
-        );
-        ctx.stroke();
-        {% endif %}
+        if (cropped) {
+            let x = parseFloat(canvas.getAttribute('data-x'));
+            let y = parseFloat(canvas.getAttribute('data-y'));
+            let width = parseFloat(canvas.getAttribute('data-width'));
+            let height = parseFloat(canvas.getAttribute('data-height'));
+
+            let scaleX = img.width / canvas.width;
+            let scaleY = img.height / canvas.height;
+
+            ctx.beginPath();
+            ctx.strokeStyle = "black";
+            ctx.lineWidth = 2;
+            ctx.rect(
+                (x - width / 2) / scaleX - 2,
+                (y - height / 2) / scaleY - 2,
+                width / scaleX + 4,
+                height / scaleY + 4,
+            );
+            ctx.stroke();
+
+            ctx.beginPath();
+            ctx.strokeStyle = "white";
+            ctx.lineWidth = 2;
+            ctx.rect(
+                (x - width / 2) / scaleX,
+                (y - height / 2) / scaleY,
+                width / scaleX,
+                height / scaleY,
+            );
+            ctx.stroke();
+        }
     }
 
     main();

@@ -97,6 +97,13 @@
                         {% if media.height %}data-height="{{ media.height }}"{% endif %}
                     >
                     </canvas>
+                    {% if media.confidence %}
+                        {% if media.confidence > 0.5 %}
+                            <div class="has-text-success">{{ media.confidence }}</div>
+                        {% else %}
+                            <div class="has-text-danger">{{ media.confidence }}</div>
+                        {% endif %}
+                    {% endif %}
                 </div>
             </a>
         {% endfor %}
@@ -167,25 +174,38 @@
         let cropped = canvas.getAttribute('data-cropped') === 'true';
 
         let img = await loadImage(src);
-        ctx.drawImage(img, 0, 0, img.width, img.height, 0, 0, canvas.width, canvas.height);
+
+        let min = Math.min(img.width, img.height);
+        let scale = img.width > img.height ? img.height / canvas.height : img.width / canvas.width;
+        let offsetX = img.width > img.height ? (img.width - img.height) / 2 : 0;
+        let offsetY = img.width > img.height ? 0 : (img.height - img.width) / 2;
 
         if (cropped) {
-            let scaleX = img.width / canvas.width;
-            let scaleY = img.height / canvas.height;
-
             let x = parseFloat(canvas.getAttribute('data-x'));
             let y = parseFloat(canvas.getAttribute('data-y'));
             let width = parseFloat(canvas.getAttribute('data-width'));
             let height = parseFloat(canvas.getAttribute('data-height'));
 
+            if (img.width > img.height) {
+                offsetX = x - img.height / 2;
+                offsetX = Math.max(offsetX, 0);
+                offsetX = Math.min(offsetX, img.width - img.height);
+            } else {
+                offsetY = y - img.width / 2;
+                offsetY = Math.max(offsetY, 0);
+                offsetY = Math.min(offsetY, img.height - img.width);
+            }
+
+            ctx.drawImage(img, offsetX, offsetY, min, min, 0, 0, canvas.width, canvas.height);
+
             ctx.beginPath();
             ctx.strokeStyle = "black";
             ctx.lineWidth = 2;
             ctx.rect(
-                (x - width / 2) / scaleX - 2,
-                (y - height / 2) / scaleY - 2,
-                width / scaleX + 4,
-                height / scaleY + 4,
+                (x - width / 2 - offsetX) / scale - 2,
+                (y - height / 2 - offsetY) / scale - 2,
+                width / scale + 4,
+                height / scale + 4,
             );
             ctx.stroke();
 
@@ -193,12 +213,17 @@
             ctx.strokeStyle = "white";
             ctx.lineWidth = 2;
             ctx.rect(
-                (x - width / 2) / scaleX,
-                (y - height / 2) / scaleY,
-                width / scaleX,
-                height / scaleY,
+                (x - width / 2 - offsetX) / scale,
+                (y - height / 2 - offsetY) / scale,
+                width / scale,
+                height / scale,
             );
             ctx.stroke();
+
+        } else {
+
+            ctx.drawImage(img, offsetX, offsetY, min, min, 0, 0, canvas.width, canvas.height);
+
         }
     }
 
