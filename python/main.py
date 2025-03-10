@@ -71,13 +71,18 @@ class Response:
         return json.dumps(self.__dict__)
 
 
+class Ready:
+    def to_json(self):
+        return '{"type": "ready"}'
+
+
 class Batch:
     def __init__(self, id):
         self.id = id
         self.files = []
 
     def to_json(self):
-        return f'{{"id": {self.id}, "files": [' + ','.join([x.to_json() for x in self.files]) + ']}'
+        return f'{{"type": "batch", "id": {self.id}, "files": [' + ','.join([x.to_json() for x in self.files]) + ']}'
 
 
 class FileCropSuccess(Response):
@@ -124,6 +129,9 @@ def main(tmp_root):
     batch_counter = 0
     batch = []
 
+    eprint('python is ready')
+    print(Ready().to_json())
+
     while True:
         try:
             request_str = input()
@@ -158,6 +166,7 @@ def main(tmp_root):
                     print(batch_response.to_json(), flush=True)
                     batch = []
                     batch_counter += 1
+                    continue
 
                 for index, (request, predict) in enumerate(zip(batch, predicts)):
 
