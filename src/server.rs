@@ -9,6 +9,7 @@ use serde::Serialize;
 use serde_json::{json, Value};
 
 use ergol::prelude::*;
+use ergol::tokio_postgres::types::ToSql;
 
 use tera::{Context, Tera};
 
@@ -102,79 +103,43 @@ pub async fn species_list(
         taxon_key
     );
 
-    let species_count = db
-        .client()
-        .query(&sql, &[&BLACKLISTED_DATASET, &taxon_value])
-        .await?
-        .into_iter()
-        .next()
-        .unwrap()
-        .get::<usize, i64>(0);
+    let arg1: &[&(dyn ToSql + Sync)] = &[&BLACKLISTED_DATASET, &taxon_value];
+    let query1 = db.client().query(&sql, &arg1);
 
-    // Beautiful sql request
+    // List species
     let sql = format!(
         r#"
     SELECT
-        subquery.species_id,
-        subquery.species_key,
-        subquery.reign,
-        subquery.phylum,
-        subquery.class,
-        subquery.order,
-        subquery.family,
-        subquery.genus,
-        subquery.valid_name,
-        subquery.media_path,
+        speciess.id,
+        speciess.species_key,
+        speciess.reign,
+        speciess.phylum,
+        speciess.class,
+        speciess.order,
+        speciess.family,
+        speciess.genus,
+        speciess.valid_name,
+        (percentile_disc(0) WITHIN GROUP (ORDER BY ARRAY[speciess.id::varchar, medias.path]))[2] as path,
         COUNT(DISTINCT occurrences.id),
         COUNT(medias.id)
-    FROM (
-        SELECT
-            DISTINCT ON (speciess.id)
-            speciess.id AS species_id,
-            speciess.reign AS reign,
-            speciess.phylum AS phylum,
-            speciess.class AS class,
-            speciess.order AS order,
-            speciess.family AS family,
-            speciess.genus AS genus,
-            speciess.valid_name AS valid_name,
-            speciess.species_key AS species_key,
-            medias.path AS media_path
-        FROM
-            speciess, occurrences, medias
-        WHERE
-            speciess.id = occurrences.species AND
-            occurrences.id = medias.occurrence AND
-            occurrences.dataset_key != $1 AND
-            200 <= medias.status_code AND medias.status_code < 400 AND
-            medias.path IS NOT NULL AND
-            speciess.{} = $2
-        ) AS subquery, occurrences, medias
+    FROM
+        speciess, occurrences, medias
     WHERE
-        subquery.species_id = occurrences.species AND
+        speciess.id = occurrences.species AND
         occurrences.id = medias.occurrence AND
         occurrences.dataset_key != $1 AND
         200 <= medias.status_code AND medias.status_code < 400 AND
-        medias.path IS NOT NULL
+        medias.path IS NOT NULL AND
+        speciess.{} = $2
     GROUP BY
-        subquery.species_id,
-        subquery.reign,
-        subquery.phylum,
-        subquery.class,
-        subquery.order,
-        subquery.family,
-        subquery.genus,
-        subquery.valid_name,
-        subquery.species_key,
-        subquery.media_path
-    ORDER BY
-        subquery.reign,
-        subquery.phylum,
-        subquery.class,
-        subquery.order,
-        subquery.family,
-        subquery.genus,
-        subquery.valid_name
+        speciess.id,
+        speciess.reign,
+        speciess.phylum,
+        speciess.class,
+        speciess.order,
+        speciess.family,
+        speciess.genus,
+        speciess.valid_name
     OFFSET
         $3
     LIMIT
@@ -184,12 +149,19 @@ pub async fn species_list(
         taxon_key
     );
 
-    let mut breadcrumb = None;
     let offset = (page - 1) as i64 * LIMIT;
-    let species = db
-        .client()
-        .query(&sql, &[&BLACKLISTED_DATASET, &taxon_value, &offset, &LIMIT])
-        .await?
+    let arg2: &[&(dyn ToSql + Sync)] = &[&BLACKLISTED_DATASET, &taxon_value, &offset, &LIMIT];
+
+    let query2 = db.client().query(&sql, arg2);
+
+    let mut breadcrumb = None;
+
+    // Await both sql at the same time
+    let (query1, query2) = futures::join!(query1, query2);
+
+    let species_count = query1?.into_iter().next().unwrap().get::<usize, i64>(0);
+
+    let species = query2?
         .into_iter()
         .map(|x| {
             let species_key = x.get::<usize, i64>(1);
