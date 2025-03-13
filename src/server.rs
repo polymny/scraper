@@ -6,7 +6,7 @@ use std::result::Result as StdResult;
 
 use serde::Serialize;
 
-use serde_json::{json, Map, Value};
+use serde_json::{json, Value};
 
 use ergol::prelude::*;
 
@@ -428,13 +428,18 @@ pub async fn plotly(tera: &S<Tera>, db: Db) -> Result<Html> {
     )
 }
 
+/// Helper structure to send tree form of taxonomy to client as json.
 #[derive(Serialize)]
 pub struct Tree {
+    /// Name of the taxon.
     pub name: String,
+
+    /// Children of the current taxon.
     pub children: Vec<Tree>,
 }
 
 impl Tree {
+    /// Creates a new tree from a name, without any children.
     pub fn new(name: &str) -> Tree {
         Tree {
             name: name.to_owned(),
@@ -442,6 +447,7 @@ impl Tree {
         }
     }
 
+    /// Checks whether there is a child that has the same name as given as parameter.
     pub fn contains(&self, name: &str) -> bool {
         self.children
             .iter()
@@ -450,10 +456,14 @@ impl Tree {
             .is_some()
     }
 
+    /// Returns a mutable reference to the child that has the same name as given as parameter if
+    /// any.
     pub fn find_mut(&mut self, name: &str) -> Option<&mut Tree> {
         self.children.iter_mut().filter(|x| x.name == name).next()
     }
 
+    /// Returns a mutable reference to the child that has the same name as given as parameter,
+    /// creating a new child if there is no child with the same name.
     pub fn find_mut_or_insert(&mut self, name: &str) -> &mut Tree {
         if self.contains(name) {
             self.children
