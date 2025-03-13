@@ -352,7 +352,7 @@ pub async fn dynamic_plotly(taxon: Taxon, value: &str, db: Db) -> Result<Value> 
     };
 
     let query = format!(
-        "SELECT {0} FROM speciess WHERE {1} = $1 GROUP BY {0};",
+        "SELECT {0} FROM speciess WHERE {1} = $1 GROUP BY {0} ORDER BY {0};",
         select, taxon_str,
     );
     let rows = db.client().query(&query, &[&value]).await?;

@@ -34,6 +34,8 @@ window.Plot = (function() {
                 let subtree = Tree.fromJson(child, depth + 1);
                 tree.appendChild(subtree);
             }
+
+            tree.width = value.children.length || 1;
             return tree;
         }
 
@@ -142,7 +144,7 @@ window.Plot = (function() {
                         this.ctx.fill();
 
                         // Draw text
-                        let r = (this.secondWidth + this.thirdWidth)  / 2;
+                        let r = (this.secondWidth + this.thirdWidth) / 2;
                         let theta = currentAngle + child.width / (2 * total);
 
                         let x = this.center.x + r * Math.cos(theta);
@@ -150,7 +152,24 @@ window.Plot = (function() {
 
                         this.ctx.fillStyle = "black";
                         let { width } = this.ctx.measureText(child.name);
-                        this.ctx.fillText(child.name, x - width / 2, y);
+
+                        this.ctx.save();
+                        this.ctx.translate(this.center.x, this.center.y);
+
+                        let angle = currentAngle + child.width / (2 * total);
+                        let reverse = (angle + Math.PI / 2) % (2 * Math.PI) > Math.PI;
+
+                        this.ctx.rotate(angle + (reverse ? -0.025 : 0.025));
+                        this.ctx.translate(r, 0);
+
+                        if (reverse) {
+                            this.ctx.rotate(Math.PI);
+                        }
+
+                        this.ctx.fillText(child.name, -width / 2, 0);
+                        this.ctx.restore();
+
+                        // this.ctx.fillText(child.name, x - width / 2, y);
 
 
                         currentAngle += child.width / total;
@@ -205,7 +224,21 @@ window.Plot = (function() {
 
                 this.ctx.fillStyle = "black";
                 let { width } = this.ctx.measureText(child.name);
-                this.ctx.fillText(child.name, x - width / 2, y);
+                this.ctx.save();
+                this.ctx.translate(this.center.x, this.center.y);
+
+
+                let angle = currentAngle + child.width / (2 * total);
+                let reverse = (angle + Math.PI / 2) % (2 * Math.PI) > Math.PI;
+                this.ctx.rotate(angle + (reverse ? -0.025 : 0.025));
+                this.ctx.translate(r, 0);
+
+                if (reverse) {
+                    this.ctx.rotate(Math.PI);
+                }
+
+                this.ctx.fillText(child.name, -width / 2, 0);
+                this.ctx.restore();
 
 
                 currentAngle += child.width / total;
@@ -346,10 +379,7 @@ window.Plot = (function() {
         json = await json.json();
 
         let validNameElement = document.getElementById('valid-name');
-
-        console.log(json);
         let tree = Tree.fromJson(json);
-        console.log(tree);
 
         let chart = new Plot.Chart("sunburst", tree);
 
