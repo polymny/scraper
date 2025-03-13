@@ -4,7 +4,9 @@ use std::path::{Path, PathBuf};
 use std::process::exit;
 use std::result::Result as StdResult;
 
-use serde_json::{json, Value};
+use serde::Serialize;
+
+use serde_json::{json, Map, Value};
 
 use ergol::prelude::*;
 
@@ -426,6 +428,85 @@ pub async fn plotly(tera: &S<Tera>, db: Db) -> Result<Html> {
     )
 }
 
+#[derive(Serialize)]
+pub struct Tree {
+    pub name: String,
+    pub children: Vec<Tree>,
+}
+
+impl Tree {
+    pub fn new(name: &str) -> Tree {
+        Tree {
+            name: name.to_owned(),
+            children: vec![],
+        }
+    }
+
+    pub fn contains(&self, name: &str) -> bool {
+        self.children
+            .iter()
+            .filter(|x| x.name == name)
+            .next()
+            .is_some()
+    }
+
+    pub fn find_mut(&mut self, name: &str) -> Option<&mut Tree> {
+        self.children.iter_mut().filter(|x| x.name == name).next()
+    }
+
+    pub fn find_mut_or_insert(&mut self, name: &str) -> &mut Tree {
+        if self.contains(name) {
+            self.children
+                .iter_mut()
+                .filter(|x| x.name == name)
+                .next()
+                .unwrap()
+        } else {
+            self.children.push(Tree::new(name));
+            self.children.last_mut().unwrap()
+        }
+    }
+}
+
+/// Routes for dynamic plotly.
+#[get("/plotly/<taxon>/<value>")]
+pub async fn dynamic_plotly(taxon: Taxon, value: &str, db: Db) -> Result<Value> {
+    info!("Plotly {} {}", taxon.to_str(), value);
+    let taxon_str = match taxon {
+        Taxon::Species => "valid_name",
+        Taxon::Order => "speciess.order",
+        _ => taxon.to_str(),
+    };
+
+    let (select, depth) = match taxon {
+        Taxon::Reign => ("speciess.reign, speciess.phylum, speciess.class", 3),
+        Taxon::Phylum => ("speciess.phylum, speciess.class, speciess.order", 3),
+        Taxon::Class => ("speciess.class, speciess.order, speciess.family", 3),
+        Taxon::Order => ("speciess.order, speciess.family, speciess.genus", 3),
+        Taxon::Family => ("speciess.family, speciess.genus, speciess.valid_name", 3),
+        Taxon::Genus => ("speciess.genus, speciess.valid_name", 2),
+        Taxon::Species => ("speciess.valid_name", 1),
+    };
+
+    let query = format!(
+        "SELECT {0} FROM speciess WHERE {1} = $1 GROUP BY {0};",
+        select, taxon_str,
+    );
+    let rows = db.client().query(&query, &[&value]).await?;
+
+    let mut tree = Tree::new(value);
+
+    for row in rows {
+        let mut local_tree = &mut tree;
+        for i in 1..depth {
+            let value = row.get::<usize, String>(i);
+            local_tree = local_tree.find_mut_or_insert(&value);
+        }
+    }
+
+    Ok(json!(tree))
+}
+
 /// Route for visualising a media.
 #[get("/media/<species_key>/<occurrence_key>/<media_index>")]
 pub async fn media(
@@ -494,7 +575,15 @@ pub async fn serve() -> StdResult<Rocket<Ignite>, rocket::Error> {
         .attach(LogFairing)
         .mount(
             "/",
-            routes![index, species, plotly, media, static_files, data_files,],
+            routes![
+                index,
+                species,
+                plotly,
+                dynamic_plotly,
+                media,
+                static_files,
+                data_files,
+            ],
         )
         .ignite()
         .await?

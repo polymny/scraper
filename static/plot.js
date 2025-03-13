@@ -1,0 +1,382 @@
+window.Plot = (function() {
+    let colorCounter = 0;
+
+    function depthToTaxon(depth) {
+        switch (depth) {
+            case 0: return "reign";
+            case 1: return "phylum";
+            case 2: return "class";
+            case 3: return "order";
+            case 4: return "family";
+            case 5: return "genus";
+            case 6: return "species";
+            default:
+                throw new Error("taxon depth does not exist: " + depth);
+        }
+    }
+
+    class Tree {
+        constructor(name, depth = 0) {
+            colorCounter++;
+
+            this.parent = null;
+            this.name = name;
+            this.width = 1;
+            this.color = 'hsl(' + (colorCounter * 20) + 'deg, 90%, 80%)';
+            this.children = [];
+            this.hovering = false;
+            this.depth = depth;
+        }
+
+        static fromJson(value, depth = 0) {
+            let tree = new Tree(value.name, depth);
+            for (let child of value.children) {
+                let subtree = Tree.fromJson(child, depth + 1);
+                tree.appendChild(subtree);
+            }
+            return tree;
+        }
+
+        appendChild() {
+            for (let arg of arguments) {
+                arg.parent = this;
+            }
+            this.children.push(...arguments);
+            return this;
+        }
+
+        log() {
+            let chain = [this.name];
+            let tmp = this;
+
+            while (tmp.parent !== null) {
+                chain.push(tmp.parent.name);
+                tmp = tmp.parent;
+            }
+
+            console.log(chain.reverse().join(" > "));
+        }
+    };
+
+    class Chart {
+        constructor(parent, root) {
+            if (parent instanceof HTMLElement) {
+                this.parent = parent;
+            } else if (typeof parent === "string" || parent instanceof String ) {
+                this.parent = document.getElementById(parent);
+                if (parent === null) {
+                    throw new Error("Attempted to create chart on non defined element");
+                }
+            } else {
+                throw new Error("Attempted to create chart on unknown element");
+            }
+
+            this.root = root;
+            this.currentRoot = root;
+
+            this.canvas = document.createElement('canvas');
+            this.parent.appendChild(this.canvas);
+
+            this.canvas.width = 1000;
+            this.canvas.height = 1000;
+            this.center = {x: this.canvas.width / 2, y: this.canvas.height / 2};
+            this.radius = 0.95 * this.canvas.width;
+            this.firstWidth = this.radius / 10;
+            this.secondWidth = this.radius / 4;
+            this.thirdWidth = this.radius / 2.5;
+
+            this.ctx = this.canvas.getContext('2d');
+            this.fontSize = 20;
+            this.ctx.font = this.fontSize + 'px Verdana';
+
+            this.canvas.addEventListener('click', e => this.onClick(e));
+            this.canvas.addEventListener('mousemove', e => this.onMouseMove(e));
+
+            this.listeners = {
+                click: [],
+                mouseover: [],
+                mouseout: [],
+            };
+        }
+
+        addEventListener(type, callback) {
+            if (this.listeners[type] === undefined) {
+                throw new Error("Attempted to trigger listener for unknown event type: " + type);
+            }
+
+            this.listeners[type].push(callback);
+            return this;
+        }
+
+        trigger(type, event) {
+            if (this.listeners[type] === undefined) {
+                throw new Error("Attempted to trigger listener for unknwon event type: " + type);
+            }
+
+            for (let listener of this.listeners[type]) {
+                listener.call(this, event);
+            }
+        }
+
+        render() {
+            this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+
+            this.ctx.lineWidth = 2;
+            this.ctx.strokeStyle = "white";
+            this.ctx.fillStyle = "white";
+
+            // Third level
+            let currentAngle = 0;
+            let total = this.currentRoot.children.map(x => x.children.map(x => x.width).reduce((a, b) => a + b, 0)).reduce((a, b) => a + b, 0) / (2 * Math.PI);
+
+            if (this.currentRoot.children.length > 0 && this.currentRoot.children[0].children.length > 0) {
+
+                for (let tmpChild of this.currentRoot.children) {
+                    for (let child of tmpChild.children) {
+                        // Arc for the child
+                        this.ctx.fillStyle = child.color;
+                        this.ctx.beginPath();
+                        this.ctx.moveTo(this.center.x, this.center.y);
+                        this.ctx.arc(this.center.x, this.center.y, this.thirdWidth, currentAngle, currentAngle + child.width / total);
+                        this.ctx.closePath();
+                        this.ctx.fill();
+
+                        // Draw text
+                        let r = (this.secondWidth + this.thirdWidth)  / 2;
+                        let theta = currentAngle + child.width / (2 * total);
+
+                        let x = this.center.x + r * Math.cos(theta);
+                        let y = this.center.y + r * Math.sin(theta);
+
+                        this.ctx.fillStyle = "black";
+                        let { width } = this.ctx.measureText(child.name);
+                        this.ctx.fillText(child.name, x - width / 2, y);
+
+
+                        currentAngle += child.width / total;
+                    }
+                }
+
+                // Third level lines
+                this.ctx.fillStyle = "white";
+                currentAngle = 0;
+
+                for (let tmpChild of this.currentRoot.children) {
+                    for (let child of tmpChild.children) {
+                        // Arc for the child
+                        this.ctx.beginPath();
+                        this.ctx.moveTo(this.center.x, this.center.y);
+                        this.ctx.arc(this.center.x, this.center.y, this.thirdWidth, currentAngle, currentAngle + child.width / total);
+                        this.ctx.closePath();
+                        this.ctx.stroke();
+
+                        currentAngle += child.width / total;
+                    }
+                }
+
+            }
+
+            // Second level
+            currentAngle = 0;
+            total = this.currentRoot.children.map(x => x.width).reduce((a, b) => a + b, 0) / (2 * Math.PI);
+
+            // Increase width if last level
+            let localWidth = this.secondWidth;
+
+            if (this.currentRoot.children.length > 0 && this.currentRoot.children[0].children.length === 0) {
+                localWidth = this.thirdWidth;
+            }
+
+            for (let child of this.currentRoot.children) {
+                // Arc for the child
+                this.ctx.fillStyle = child.color;
+                this.ctx.beginPath();
+                this.ctx.moveTo(this.center.x, this.center.y);
+                this.ctx.arc(this.center.x, this.center.y, localWidth, currentAngle, currentAngle + child.width / total);
+                this.ctx.closePath();
+                this.ctx.fill();
+
+                // Draw text
+                let r = (this.firstWidth + localWidth)  / 2;
+                let theta = currentAngle + child.width / (2 * total);
+
+                let x = this.center.x + r * Math.cos(theta);
+                let y = this.center.y + r * Math.sin(theta);
+
+                this.ctx.fillStyle = "black";
+                let { width } = this.ctx.measureText(child.name);
+                this.ctx.fillText(child.name, x - width / 2, y);
+
+
+                currentAngle += child.width / total;
+            }
+
+            // Second level lines
+            this.ctx.fillStyle = "white";
+            currentAngle = 0;
+
+            for (let child of this.currentRoot.children) {
+                // Arc for the child
+                this.ctx.beginPath();
+                this.ctx.moveTo(this.center.x, this.center.y);
+                this.ctx.arc(this.center.x, this.center.y, localWidth, currentAngle, currentAngle + child.width / total);
+                this.ctx.closePath();
+                this.ctx.stroke();
+
+                currentAngle += child.width / total;
+            }
+
+
+            // First level
+            this.ctx.fillStyle = "black";
+            this.ctx.beginPath();
+            this.ctx.arc(this.center.x, this.center.y, this.firstWidth, 0, 2 * Math.PI, true);
+            this.ctx.fill();
+
+            this.ctx.fillStyle = "white";
+            let { width } = this.ctx.measureText(this.currentRoot.name);
+            this.ctx.fillText(this.currentRoot.name, this.center.x - width / 2, this.center.y);
+
+            // First level lines
+            this.ctx.beginPath();
+            this.ctx.arc(this.center.x, this.center.y, this.firstWidth, 0, 2 * Math.PI, true);
+            this.ctx.stroke();
+        }
+
+        getElement(x, y) {
+            let theta = Math.atan2(y, x);
+
+            // Put theta between 0 and 2*pi
+            if (theta < 0) {
+                theta += 2 * Math.PI;
+            }
+
+            let r2 = x*x + y*y;
+
+            if (r2 < this.firstWidth * this.firstWidth) {
+                return this.currentRoot;
+            }
+
+            // Increase width if last level
+            let localWidth = this.secondWidth;
+
+            if (this.currentRoot.children.length > 0 && this.currentRoot.children[0].children.length === 0) {
+                localWidth = this.thirdWidth;
+            }
+
+            if (r2 < localWidth * localWidth) {
+
+                let currentAngle = 0;
+                let total = this.currentRoot.children.map(x => x.width).reduce((a, b) => a + b, 0) / (2 * Math.PI);
+
+                for (let child of this.currentRoot.children) {
+                    currentAngle += child.width / total;
+
+                    if (theta < currentAngle) {
+                        return child;
+                    }
+                }
+            }
+
+            if (r2 < this.thirdWidth * this.thirdWidth) {
+
+                let currentAngle = 0;
+                let total = this.currentRoot.children.map(x => x.children.map(x => x.width).reduce((a, b) => a + b, 0)).reduce((a, b) => a + b, 0) / (2 * Math.PI);
+
+                for (let tmpChild of this.currentRoot.children) {
+                    for (let child of tmpChild.children) {
+                        currentAngle += child.width / total;
+
+                        if (theta < currentAngle) {
+                            return child;
+                        }
+                    }
+                }
+            }
+        }
+
+        getCurrentHovering() {
+            if (this.currentRoot.hovering) {
+                return this.currentRoot;
+            }
+
+            for (let child of this.currentRoot.children) {
+                if (child.hovering) {
+                    return child;
+                }
+            }
+
+            for (let tmpChild of this.currentRoot.children) {
+                for (let child of tmpChild.children) {
+                    if (child.hovering) {
+                        return child;
+                    }
+                }
+            }
+
+        }
+
+        onClick(event) {
+            let child = this.getElement(event.offsetX - this.center.x, event.offsetY - this.center.y);
+            if (child !== undefined) {
+                this.trigger('click', child);
+            }
+        }
+
+        onMouseMove(event) {
+            let currentHovering = this.getCurrentHovering();
+            let nextHovering = this.getElement(event.offsetX - this.center.x, event.offsetY - this.center.y);
+
+            if (currentHovering !== nextHovering) {
+                if (currentHovering !== undefined) {
+                    currentHovering.hovering = false;
+                    this.trigger('mouseout', currentHovering);
+                }
+
+                if (nextHovering) {
+                    nextHovering.hovering = true;
+                    this.trigger('mouseover', nextHovering);
+                }
+            }
+        }
+    }
+
+    async function example() {
+        let json = await fetch('/plotly/reign/Animalia');
+        json = await json.json();
+
+        let validNameElement = document.getElementById('valid-name');
+
+        console.log(json);
+        let tree = Tree.fromJson(json);
+        console.log(tree);
+
+        let chart = new Plot.Chart("sunburst", tree);
+
+        chart.addEventListener('click', async function(child) {
+            if (chart.currentRoot === child) {
+                if (child.parent !== null) {
+                    chart.currentRoot = child.parent;
+                }
+            } else {
+                // Fetch what we need
+                let req = await fetch('/plotly/' + depthToTaxon(child.depth) + '/' + child.name);
+                let resp = await req.json();
+                child.children = Tree.fromJson(resp, child.depth).children;
+                for (let subchild of child.children) {
+                    subchild.parent = child;
+                }
+                chart.currentRoot = child;
+            }
+            chart.render();
+        });
+
+        chart.addEventListener('mouseover', child => {
+            validNameElement.innerHTML = child.name;
+        });
+
+        chart.render();
+    }
+
+    return { Tree, Chart, example };
+})();

@@ -1,0 +1,27 @@
+services:
+  server:
+    build:
+      context: .
+      target: server
+    environment:
+      - ROOT_URI=http://localhost:8000
+      - COOKIE_SECRET_KEY=LFE2hXgtKTAUz8gD1ahhjrTm2vHL1p7G7MoUbE+3ESI=
+      - DATA_PATH=/data
+      - JOBS=50
+      - BATCH_SIZE=50
+      - POSTGRES_URI=postgres://scraper:scraper@postgres:5432/scraper
+    ports:
+      - 8000:8000
+    volumes:
+      - ./data/apidae:/data
+
+  postgres:
+    image: postgres:14
+    environment:
+      - POSTGRES_USER=scraper
+      - POSTGRES_PASSWORD=scraper
+      - POSTGRES_DB=scraper
+    ports:
+      - 5432:5432
+    volumes:
+      - ./data/postgres:/var/lib/postgresql/data

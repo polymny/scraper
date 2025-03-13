@@ -1,0 +1,31 @@
+[default]
+
+# Adresse d'écoute du serveur
+address = "0.0.0.0"
+
+# Port d'écoute du serveur
+port = 8000
+
+# URL de base du serveur
+root = "{{ env.ROOT_URI | default(value="http://localhost:8000") }}"
+
+# Clé pour le chiffrement des cookies (peut être générée par `openssl rand -base64 32`)
+secret_key = "{{ env.COOKIE_SECRET_KEY | default(value="tobedefined") }}"
+
+# Chemin de stockage des données
+data_path = "{{ env.DATA_PATH | default(value="/data") }}"
+
+# Nombre de téléchargements concurrents lancés simultanément
+jobs = {{ env.JOBS }}
+
+# Nombre d'images à mettre dans un batch pour le cropping
+batch_size = {{ env.BATCH_SIZE }}
+
+# Limites pour l'envoi des fichiers (1GiB)
+limits = { form = 1073741824, data-form = 1073741824, file = 1073741824 }
+
+[default.databases.database]
+
+# URL de connexion à la base de données (postgres://username:password@host/dbname)
+url = "{{ env.POSTGRES_URI | default(value="postgres://scraper:scraper@postgres:5432/scraper") }}"
+
