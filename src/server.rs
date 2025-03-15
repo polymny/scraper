@@ -90,20 +90,16 @@ pub async fn species_list(
         SELECT
             COUNT(DISTINCT speciess.id)
         FROM
-            speciess, occurrences, medias
+            speciess
         WHERE
-            speciess.id = occurrences.species AND
-            occurrences.id = medias.occurrence AND
-            occurrences.dataset_key != $1 AND
-            200 <= medias.status_code AND medias.status_code < 400 AND
-            medias.path IS NOT NULL AND
-            speciess.{} = $2
+            speciess.example_media_path IS NOT NULL AND
+            speciess.{} = $1
         ;
     "#,
         taxon_key
     );
 
-    let arg1: &[&(dyn ToSql + Sync)] = &[&BLACKLISTED_DATASET, &taxon_value];
+    let arg1: &[&(dyn ToSql + Sync)] = &[&taxon_value];
     let query1 = db.client().query(&sql, &arg1);
 
     // List species
@@ -119,7 +115,7 @@ pub async fn species_list(
         speciess.family,
         speciess.genus,
         speciess.valid_name,
-        (percentile_disc(0) WITHIN GROUP (ORDER BY ARRAY[speciess.id::varchar, medias.path]))[2] as path,
+        speciess.example_media_path,
         COUNT(DISTINCT occurrences.id),
         COUNT(medias.id)
     FROM
@@ -127,6 +123,7 @@ pub async fn species_list(
     WHERE
         speciess.id = occurrences.species AND
         occurrences.id = medias.occurrence AND
+        speciess.example_media_path IS NOT NULL AND
         occurrences.dataset_key != $1 AND
         200 <= medias.status_code AND medias.status_code < 400 AND
         medias.path IS NOT NULL AND
@@ -139,7 +136,7 @@ pub async fn species_list(
         speciess.order,
         speciess.family,
         speciess.genus,
-        speciess.valid_name
+        speciess.example_media_path
     OFFSET
         $3
     LIMIT

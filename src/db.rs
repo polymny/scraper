@@ -116,6 +116,9 @@ pub struct Species {
 
     /// Whether the scraping is done for this species.
     pub done: bool,
+
+    /// An example media if available.
+    pub example_media_path: Option<String>,
 }
 
 impl Species {
@@ -152,6 +155,7 @@ impl Species {
             species_key,
             available_occurrences,
             done: false,
+            example_media_path: None,
         }
     }
 
