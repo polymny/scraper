@@ -1,6 +1,6 @@
 services:
   server:
-    image: registry.polymny.studio/cnrs/scraper:0.0.1
+    image: registry.polymny.studio/cnrs/scraper:0.0.2
     build:
       context: .
       target: server
