@@ -92,6 +92,7 @@ window.Plot = (function() {
             this.ctx.font = this.fontSize + 'px Verdana';
 
             this.canvas.addEventListener('click', e => this.onClick(e));
+            this.canvas.addEventListener('auxclick', e => this.onClick(e));
             this.canvas.addEventListener('mousemove', e => this.onMouseMove(e));
 
             this.listeners = {
@@ -110,13 +111,13 @@ window.Plot = (function() {
             return this;
         }
 
-        trigger(type, event) {
+        trigger(type, child, event) {
             if (this.listeners[type] === undefined) {
                 throw new Error("Attempted to trigger listener for unknwon event type: " + type);
             }
 
             for (let listener of this.listeners[type]) {
-                listener.call(this, event);
+                listener.call(this, child, event);
             }
         }
 
@@ -352,7 +353,7 @@ window.Plot = (function() {
         onClick(event) {
             let child = this.getElement(event.offsetX - this.center.x, event.offsetY - this.center.y);
             if (child !== undefined) {
-                this.trigger('click', child);
+                this.trigger('click', child, event);
             }
         }
 
@@ -363,50 +364,16 @@ window.Plot = (function() {
             if (currentHovering !== nextHovering) {
                 if (currentHovering !== undefined) {
                     currentHovering.hovering = false;
-                    this.trigger('mouseout', currentHovering);
+                    this.trigger('mouseout', currentHovering, event);
                 }
 
                 if (nextHovering) {
                     nextHovering.hovering = true;
-                    this.trigger('mouseover', nextHovering);
+                    this.trigger('mouseover', nextHovering, event);
                 }
             }
         }
     }
 
-    async function example() {
-        let json = await fetch('/plotly/reign/Animalia');
-        json = await json.json();
-
-        let validNameElement = document.getElementById('valid-name');
-        let tree = Tree.fromJson(json);
-
-        let chart = new Plot.Chart("sunburst", tree);
-
-        chart.addEventListener('click', async function(child) {
-            if (chart.currentRoot === child) {
-                if (child.parent !== null) {
-                    chart.currentRoot = child.parent;
-                }
-            } else {
-                // Fetch what we need
-                let req = await fetch('/plotly/' + depthToTaxon(child.depth) + '/' + child.name);
-                let resp = await req.json();
-                child.children = Tree.fromJson(resp, child.depth).children;
-                for (let subchild of child.children) {
-                    subchild.parent = child;
-                }
-                chart.currentRoot = child;
-            }
-            chart.render();
-        });
-
-        chart.addEventListener('mouseover', child => {
-            validNameElement.innerHTML = child.name;
-        });
-
-        chart.render();
-    }
-
-    return { Tree, Chart, example };
+    return { Tree, Chart, depthToTaxon };
 })();

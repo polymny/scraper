@@ -99,10 +99,12 @@
                     </canvas>
                     {% if media.confidence %}
                         {% if media.confidence > 0.5 %}
-                            <div class="has-text-success">{{ media.confidence }}</div>
+                            <div class="has-text-success">
                         {% else %}
-                            <div class="has-text-danger">{{ media.confidence }}</div>
+                            <div class="has-text-danger">
                         {% endif %}
+                                {{ media.confidence | round(precision=3)}}
+                            </div>
                     {% endif %}
                 </div>
             </a>

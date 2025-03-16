@@ -13,7 +13,8 @@
 
 {% block content %}
 <section class="section">
-    <h1 class="title is-2">Espèces {{ offset + 1 }} à {{ offset + limit + 1 }} sur {{ species_count }}</h1>
+    {% set len = species | length %}
+    <h1 class="title is-2">Espèces {{ offset + 1 }} à {{ offset + len }} sur {{ species_count }}</h1>
 
     <nav class="breadcrumb has-succeeds-separator" aria-label="breadcrumbs">
         <ul>

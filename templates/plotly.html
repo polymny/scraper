@@ -19,52 +19,59 @@
             <h1 class="title is-3" id="valid-name"></h1>
         </div>
     </div>
+
+    <h2 class="title is-4">Aide</h2>
+    <div class="content">
+        <ul>
+            <li>Ctrl + clic ou clic molette pour ouvrir le taxon dans un nouvel onglet</li>
+        </ul>
+    <div>
 </section>
 {% endblock content %}
 
 {% block extrajs %}
 <script src="/static/plot.js"></script>
 <script>
-    Plot.example();
-{#
-    let species = [
-        {% for species in species %}"{{ species.valid_name }}",{% endfor %}
-        {% for genus in genuses %}"{{ genus[0] }}",{% endfor %}
-    ];
+    async function main() {
+        let json = await fetch('/plotly/reign/Animalia');
+        json = await json.json();
 
-    let parents = [
-        {% for species in species %}"{{ species.genus }}",{% endfor %}
-        {% for genus in genuses %}"{{ genus[1] }}",{% endfor %}
-    ];
+        let validNameElement = document.getElementById('valid-name');
+        let tree = Plot.Tree.fromJson(json);
 
-    let values = [
-        {% for species in species %}{{ species.media_count }},{% endfor %}
-        {% for genus in genuses %}{{ 1 }},{% endfor %}
-    ];
+        let chart = new Plot.Chart("sunburst", tree);
 
-    var data = [{
-        type: "sunburst",
-        labels: species,
-        parents: parents,
-        values:  values,
-        marker: {line: {width: 2}},
-    }];
+        chart.addEventListener('click', async function(child, event) {
+            // If ctrl key is pressed down, or mouse wheel click, open list of species in new tab
+            if (event.type === "auxclick" || event.ctrlKey) {
+                window.open('/species/' + Plot.depthToTaxon(child.depth) + '/' + child.name + '/1');
+                return;
+            }
 
+            if (chart.currentRoot === child) {
+                if (child.parent !== null) {
+                    chart.currentRoot = child.parent;
+                }
+            } else {
+                // Fetch what we need
+                let req = await fetch('/plotly/' + Plot.depthToTaxon(child.depth) + '/' + child.name);
+                let resp = await req.json();
+                child.children = Plot.Tree.fromJson(resp, child.depth).children;
+                for (let subchild of child.children) {
+                    subchild.parent = child;
+                }
+                chart.currentRoot = child;
+            }
+            chart.render();
+        });
 
-    var layout = {
-        margin: {l: 0, r: 0, b: 0, t: 0},
-        width: 500,
-        height: 500,
-        paper_bgcolor: 'rgba(255,255,255, 0)',
-    };
+        chart.addEventListener('mouseover', child => {
+            validNameElement.innerHTML = '<a href="' + '/species/' + Plot.depthToTaxon(child.depth) + '/' + child.name + '/1' + '">' + child.name + '</a>';
+        });
 
-    let sunburst = document.getElementById('sunburst');
-    let plot = Plotly.newPlot(sunburst, data, layout);
-    sunburst.on('plotly_click', (e) => {
-        if (e.points[0].currentPath.split('/').length === 3) {
-            window.open('/species/species/' + e.points[0].label + '/1', '_blank');
-        }
-    });
-#}
+        chart.render();
+    }
+
+    main();
 </script>
 {% endblock extrajs %}

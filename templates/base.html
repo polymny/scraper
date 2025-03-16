@@ -5,6 +5,17 @@
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <title>Scraper</title>
         <link rel="stylesheet" href="/static/bulma.min.css">
+        <style>
+            body {
+                position: relative;
+                min-height: 100vh;
+            }
+            footer {
+                width: 100%;
+                position: absolute;
+                bottom: 0px;
+            }
+        </style>
         {% block extracss %}{% endblock extracss %}
     </head>
     <body>
@@ -26,7 +37,14 @@
                 </div>
             </div>
         </nav>
-        {% block content %}{% endblock content %}
+        <div class="is-fullheight">
+            {% block content %}{% endblock content %}
+        </div>
+        <footer class="footer py-3">
+            <div class="content has-text-right">
+                <strong>{{ version }}</strong>
+            </div>
+        </footer>
         {% block extrajs %}{% endblock extrajs %}
     </body>
 </html>

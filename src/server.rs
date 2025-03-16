@@ -40,6 +40,12 @@ trait Renderable {
 
 impl Renderable for Tera {
     fn render_json(&self, template_name: &str, value: Value) -> Result<Html> {
+        let mut value = value;
+        value.as_object_mut().unwrap().insert(
+            "version".to_owned(),
+            Value::String(env!("CARGO_PKG_VERSION").to_owned()),
+        );
+
         let context = Context::from_serialize(value)?;
         Ok(RawHtml(self.render(template_name, &context)?))
     }
