@@ -37,9 +37,7 @@
                 </div>
             </div>
         </nav>
-        <div class="is-fullheight">
-            {% block content %}{% endblock content %}
-        </div>
+        {% block content %}{% endblock content %}
         <footer class="footer py-3">
             <div class="content has-text-right">
                 <strong>{{ version }}</strong>
