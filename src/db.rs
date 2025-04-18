@@ -560,3 +560,344 @@ impl Media {
         }
     }
 }
+
+/// This table stores a cache for every value for every level of taxonomy.
+///
+/// For example, if we want to know the number of medias with failed crop for a level that is not a
+/// species, the computation can be long, so this table helps us respond to the sunburst info with
+/// better performance.
+///
+/// If you want to add a field to this metadata, you start by added the field in this struct, and
+/// then, in the `regenerate` method, you set the name, the initial value for a species, and how to
+/// aggregate to values to compute the value of your field for higher levels in the taxonomy.
+#[ergol]
+#[derive(Serialize)]
+pub struct SpeciesMetadata {
+    /// Id for the rows.
+    #[id]
+    pub id: i32,
+
+    /// Reign of the species.
+    pub reign: Option<String>,
+
+    /// Phylum of the species.
+    pub phylum: Option<String>,
+
+    /// Class of the species.
+    pub class: Option<String>,
+
+    /// Order of the species.
+    pub order: Option<String>,
+
+    /// Family of the species.
+    pub family: Option<String>,
+
+    /// Genus of the species (sub-family).
+    pub genus: Option<String>,
+
+    /// Valid name of the specie.
+    #[unique]
+    pub valid_name: Option<String>,
+
+    /// Number of species for this level.
+    pub species_count: i32,
+
+    /// Number of media for this level.
+    pub medias_count: i32,
+
+    /// Number of media downloaded.
+    pub medias_downloaded_count: i32,
+
+    /// Number of media cropped.
+    pub medias_cropped_count: i32,
+}
+
+impl SpeciesMetadata {
+    /// Returns the cached values.
+    pub fn cached_values() -> Vec<&'static str> {
+        vec![
+            "species_count",
+            "medias_count",
+            "medias_downloaded_count",
+            "medias_cropped_count",
+        ]
+    }
+
+    /// Regenerates the cache.
+    pub async fn regenerate(db: &mut Db) -> Result<()> {
+        // Clear table
+        let t = db.transaction().await?;
+
+        info!("Erasing cache");
+
+        // We drop and recreate the table in case new columns appeared, it's easier that way.
+        SpeciesMetadata::drop_table().execute(&t).await?;
+        SpeciesMetadata::create_table().execute(&t).await?;
+
+        // Setup some stuff to help us write sql
+        let cached_values = SpeciesMetadata::cached_values().join(",");
+        let computed_values = r#"
+            1,
+            COUNT(medias.id),
+            COUNT(CASE WHEN medias.path IS NOT NULL THEN 1 ELSE NULL END),
+            COUNT(CASE WHEN medias.x IS NOT NULL THEN 1 ELSE NULL END)
+        "#;
+
+        let aggregated_values = r#"
+            SUM(species_metadatas.species_count),
+            SUM(species_metadatas.medias_count),
+            SUM(species_metadatas.medias_downloaded_count),
+            SUM(species_metadatas.medias_cropped_count)
+        "#;
+
+        // We start with species, and then we go up in the hierarchy
+
+        // Species level
+        info!("Generating cache for species level");
+        let query = format!(
+            r#"
+            INSERT INTO species_metadatas(
+                reign,
+                phylum,
+                class,
+                "order",
+                family,
+                genus,
+                valid_name,
+                {cached_values}
+            )
+            (
+                SELECT
+                    speciess.reign,
+                    speciess.phylum,
+                    speciess.class,
+                    speciess."order",
+                    speciess.family,
+                    speciess.genus,
+                    speciess.valid_name,
+                    {computed_values}
+                FROM
+                    speciess,
+                    occurrences,
+                    medias
+                WHERE
+                    speciess.id = occurrences.species AND
+                    occurrences.id = medias.occurrence
+                GROUP BY
+                    reign,
+                    phylum,
+                    class,
+                    "order",
+                    family,
+                    genus,
+                    valid_name
+            );
+        "#
+        );
+        t.client().query(&query, &[]).await?;
+
+        // Genus level
+        info!("Generating cache for genus level");
+        let query = format!(
+            r#"
+            INSERT INTO species_metadatas(
+                reign,
+                phylum,
+                class,
+                "order",
+                family,
+                genus,
+                {cached_values}
+            )
+            (
+                SELECT
+                    species_metadatas.reign,
+                    species_metadatas.phylum,
+                    species_metadatas.class,
+                    species_metadatas."order",
+                    species_metadatas.family,
+                    species_metadatas.genus,
+                    {aggregated_values}
+
+                FROM
+                    species_metadatas
+                WHERE
+                    species_metadatas.valid_name IS NOT NULL
+                GROUP BY
+                    reign,
+                    phylum,
+                    class,
+                    "order",
+                    family,
+                    genus
+            );
+        "#
+        );
+        t.client().query(&query, &[]).await?;
+
+        // Family level
+        info!("Generating cache for family level");
+        let query = format!(
+            r#"
+            INSERT INTO species_metadatas(
+                reign,
+                phylum,
+                class,
+                "order",
+                family,
+                {cached_values}
+            )
+            (
+                SELECT
+                    species_metadatas.reign,
+                    species_metadatas.phylum,
+                    species_metadatas.class,
+                    species_metadatas."order",
+                    species_metadatas.family,
+                    {aggregated_values}
+                FROM
+                    species_metadatas
+                WHERE
+                    species_metadatas.genus IS NOT NULL AND
+                    species_metadatas.valid_name IS NOT NULL
+                GROUP BY
+                    reign,
+                    phylum,
+                    class,
+                    "order",
+                    family
+            );
+        "#
+        );
+        t.client().query(&query, &[]).await?;
+
+        // Order level
+        info!("Generating cache for order level");
+        let query = format!(
+            r#"
+            INSERT INTO species_metadatas(
+                reign,
+                phylum,
+                class,
+                "order",
+                {cached_values}
+            )
+            (
+                SELECT
+                    species_metadatas.reign,
+                    species_metadatas.phylum,
+                    species_metadatas.class,
+                    species_metadatas."order",
+                    {aggregated_values}
+                FROM
+                    species_metadatas
+                WHERE
+                    species_metadatas.family IS NOT NULL AND
+                    species_metadatas.genus IS NOT NULL AND
+                    species_metadatas.valid_name IS NOT NULL
+                GROUP BY
+                    reign,
+                    phylum,
+                    class,
+                    "order"
+            );
+        "#
+        );
+        t.client().query(&query, &[]).await?;
+
+        // Class level
+        info!("Generating cache for class level");
+        let query = format!(
+            r#"
+            INSERT INTO species_metadatas(
+                reign,
+                phylum,
+                class,
+                {cached_values}
+            )
+            (
+                SELECT
+                    species_metadatas.reign,
+                    species_metadatas.phylum,
+                    species_metadatas.class,
+                    {aggregated_values}
+                FROM
+                    species_metadatas
+                WHERE
+                    species_metadatas.class IS NOT NULL AND
+                    species_metadatas.family IS NOT NULL AND
+                    species_metadatas.genus IS NOT NULL AND
+                    species_metadatas.valid_name IS NOT NULL
+                GROUP BY
+                    reign,
+                    phylum,
+                    class
+            );
+        "#
+        );
+        t.client().query(&query, &[]).await?;
+
+        // Phylum level
+        info!("Generating cache for phylum level");
+        let query = format!(
+            r#"
+            INSERT INTO species_metadatas(
+                reign,
+                phylum,
+                {cached_values}
+            )
+            (
+                SELECT
+                    species_metadatas.reign,
+                    species_metadatas.phylum,
+                    {aggregated_values}
+                FROM
+                    species_metadatas
+                WHERE
+                    species_metadatas.phylum IS NOT NULL AND
+                    species_metadatas.class IS NOT NULL AND
+                    species_metadatas.family IS NOT NULL AND
+                    species_metadatas.genus IS NOT NULL AND
+                    species_metadatas.valid_name IS NOT NULL
+                GROUP BY
+                    reign,
+                    phylum
+            );
+        "#
+        );
+        t.client().query(&query, &[]).await?;
+
+        // Reign level
+        info!("Generating cache for reign level");
+        let query = format!(
+            r#"
+            INSERT INTO species_metadatas(
+                reign,
+                {cached_values}
+            )
+            (
+                SELECT
+                    species_metadatas.reign,
+                    {aggregated_values}
+                FROM
+                    species_metadatas
+                WHERE
+                    species_metadatas.reign IS NOT NULL AND
+                    species_metadatas.phylum IS NOT NULL AND
+                    species_metadatas.class IS NOT NULL AND
+                    species_metadatas.family IS NOT NULL AND
+                    species_metadatas.genus IS NOT NULL AND
+                    species_metadatas.valid_name IS NOT NULL
+                GROUP BY
+                    reign
+            );
+        "#
+        );
+        t.client().query(&query, &[]).await?;
+
+        info!("Committing to database");
+        t.commit().await?;
+
+        Ok(())
+    }
+}

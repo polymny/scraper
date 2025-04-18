@@ -40,7 +40,7 @@ use ergol::Pool;
 
 use crate::config::{Config, BLACKLISTED_DATASET};
 use crate::cropper::Cropper;
-use crate::db::{Media, Occurrence, Species};
+use crate::db::{Media, Occurrence, Species, SpeciesMetadata};
 use crate::logger::Log;
 use crate::taxref::{Entry, Taxon};
 
@@ -580,6 +580,19 @@ async fn crop(config: &Config) -> Result<()> {
     Ok(())
 }
 
+async fn regen_cache(config: &Config) -> Result<()> {
+    let pool =
+        ergol::pool(&config.databases.database.url, 32).expect("Failed to connect to the database");
+
+    let mut db = Db::from_pool(pool.clone())
+        .await
+        .expect("Failed to connect to the database");
+
+    SpeciesMetadata::regenerate(&mut db).await?;
+
+    Ok(())
+}
+
 /// Prints a pretty help.
 pub fn print_help() {
     println!("NO HELP FOR YOU");
@@ -657,6 +670,10 @@ pub async fn main() -> Result<()> {
                 error!("{}", e);
                 return Err(e.into());
             }
+        }
+
+        "regen-cache" => {
+            regen_cache(&config).await?;
         }
 
         command => {

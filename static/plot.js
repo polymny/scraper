@@ -28,15 +28,40 @@ window.Plot = (function() {
             this.depth = depth;
         }
 
-        static fromJson(value, depth = 0) {
-            let tree = new Tree(value.name, depth);
-            for (let child of value.children) {
-                let subtree = Tree.fromJson(child, depth + 1);
-                tree.appendChild(subtree);
+        static fromJson(value) {
+            let root = null;
+            let current = null;
+
+            for (let row of value) {
+                let name = null;
+                let depth = null;
+
+                for (let index = 0; index < 7; index++) {
+                    if (row[depthToTaxon(index)] === null) {
+                        name = row[depthToTaxon(index - 1)]
+                        depth = index - 1;
+                        break;
+                    }
+                }
+
+                let tree = new Tree(name, depth);
+
+                if (root === null) {
+                    root = tree;
+                    current = tree;
+                    continue;
+                }
+
+                // Depth check
+                while (depth !== current.depth + 1) {
+                    current = current.parent;
+                }
+
+                current.appendChild(tree);
+                current = tree;
             }
 
-            tree.width = value.children.length || 1;
-            return tree;
+            return root;
         }
 
         appendChild() {
@@ -44,6 +69,7 @@ window.Plot = (function() {
                 arg.parent = this;
             }
             this.children.push(...arguments);
+            this.width = this.children.length;
             return this;
         }
 

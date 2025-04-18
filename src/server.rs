@@ -20,7 +20,7 @@ use rocket::{self, Ignite, Rocket, State as S};
 
 use crate::config::{Config, BLACKLISTED_DATASET};
 use crate::db::Media;
-use crate::db::Species;
+use crate::db::{Species, SpeciesMetadata};
 use crate::logger::LogFairing;
 use crate::taxref::Taxon;
 use crate::utils::{pretty_finder, pretty_name};
@@ -291,6 +291,9 @@ pub struct Tree {
     /// Name of the taxon.
     pub name: String,
 
+    /// Metadata that comes with this level of the tree.
+    pub metadata: Value,
+
     /// Children of the current taxon.
     pub children: Vec<Tree>,
 }
@@ -301,6 +304,7 @@ impl Tree {
         Tree {
             name: name.to_owned(),
             children: vec![],
+            metadata: json!({}),
         }
     }
 
@@ -340,37 +344,54 @@ impl Tree {
 pub async fn dynamic_plotly(taxon: Taxon, value: &str, db: Db) -> Result<Value> {
     let taxon_str = match taxon {
         Taxon::Species => "valid_name",
-        Taxon::Order => "speciess.order",
+        Taxon::Order => "species_metadatas.order",
         _ => taxon.to_str(),
     };
 
-    let (select, depth) = match taxon {
-        Taxon::Reign => ("speciess.reign, speciess.phylum, speciess.class", 3),
-        Taxon::Phylum => ("speciess.phylum, speciess.class, speciess.order", 3),
-        Taxon::Class => ("speciess.class, speciess.order, speciess.family", 3),
-        Taxon::Order => ("speciess.order, speciess.family, speciess.genus", 3),
-        Taxon::Family => ("speciess.family, speciess.genus, speciess.valid_name", 3),
-        Taxon::Genus => ("speciess.genus, speciess.valid_name", 2),
-        Taxon::Species => ("speciess.valid_name", 1),
+    let null = match taxon {
+        Taxon::Reign => vec![
+            "species_metadatas.order",
+            "species_metadatas.family",
+            "species_metadatas.genus",
+            "species_metadatas.valid_name",
+        ],
+        Taxon::Phylum => vec![
+            "species_metadatas.family",
+            "species_metadatas.genus",
+            "species_metadatas.valid_name",
+        ],
+        Taxon::Class => vec!["species_metadatas.genus", "species_metadatas.valid_name"],
+        Taxon::Order => vec!["species_metadatas.valid_name"],
+        Taxon::Family => vec![],
+        Taxon::Genus => vec![],
+        Taxon::Species => vec![],
     };
 
+    let null_query = null
+        .into_iter()
+        .map(|x| format!(" AND {} IS NULL", x))
+        .collect::<Vec<_>>()
+        .join("");
+
+    let meta = SpeciesMetadata::cached_values().join(", ");
+
     let query = format!(
-        "SELECT {0} FROM speciess WHERE {1} = $1 GROUP BY {0} ORDER BY {0};",
-        select, taxon_str,
+        r#"
+            SELECT *
+            FROM species_metadatas
+            WHERE {taxon_str} = $1 {null_query}
+            GROUP BY id, reign, phylum, class, "order", family, genus, valid_name, {meta}
+            ORDER BY reign NULLS FIRST, phylum NULLS FIRST, class NULLS FIRST, "order" NULLS FIRST, family NULLS FIRST, genus NULLS FIRST, valid_name NULLS FIRST
+        ;"#,
     );
+
     let rows = db.client().query(&query, &[&value]).await?;
+    let values = rows
+        .into_iter()
+        .map(|x| SpeciesMetadata::from_row(&x))
+        .collect::<Vec<_>>();
 
-    let mut tree = Tree::new(value);
-
-    for row in rows {
-        let mut local_tree = &mut tree;
-        for i in 1..depth {
-            let value = row.get::<usize, String>(i);
-            local_tree = local_tree.find_mut_or_insert(&value);
-        }
-    }
-
-    Ok(json!(tree))
+    Ok(json!(values))
 }
 
 /// Route for visualising a media.
