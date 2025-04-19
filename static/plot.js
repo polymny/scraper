@@ -21,7 +21,6 @@ window.Plot = (function() {
 
             this.parent = null;
             this.name = name;
-            this.color = 'hsl(' + (colorCounter * 20) + 'deg, 90%, 80%)';
             this.children = [];
             this.hovering = false;
             this.depth = depth;
@@ -58,6 +57,8 @@ window.Plot = (function() {
                     continue;
                 }
 
+                tree.root = root;
+
                 // Depth check
                 while (depth !== current.depth + 1) {
                     current = current.parent;
@@ -79,7 +80,23 @@ window.Plot = (function() {
         }
 
         width() {
-            return this.metadata.species_count || 1;
+            return this.metadata.medias_downloaded_count || 1;
+        }
+
+        // Returns a float between 0 and 1
+        colorValue() {
+            return this.metadata.medias_cropped_count / this.metadata.medias_downloaded_count;
+        }
+
+        // Returns a canvas ready color from colorValue
+        color() {
+            let value = this.colorValue();
+
+            let r = Math.round((1 - value) * 255);
+            let g = Math.round(value * 255);
+            let b = 0;
+
+            return `rgb(${r}, ${g}, ${b})`;
         }
 
         log() {
@@ -172,7 +189,7 @@ window.Plot = (function() {
                 for (let tmpChild of this.currentRoot.children) {
                     for (let child of tmpChild.children) {
                         // Arc for the child
-                        this.ctx.fillStyle = child.color;
+                        this.ctx.fillStyle = child.color();
                         this.ctx.beginPath();
                         this.ctx.moveTo(this.center.x, this.center.y);
                         this.ctx.arc(this.center.x, this.center.y, this.thirdWidth, currentAngle, currentAngle + child.width() / total);
@@ -244,7 +261,7 @@ window.Plot = (function() {
 
             for (let child of this.currentRoot.children) {
                 // Arc for the child
-                this.ctx.fillStyle = child.color;
+                this.ctx.fillStyle = child.color();
                 this.ctx.beginPath();
                 this.ctx.moveTo(this.center.x, this.center.y);
                 this.ctx.arc(this.center.x, this.center.y, localWidth, currentAngle, currentAngle + child.width() / total);
