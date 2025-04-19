@@ -597,7 +597,7 @@ pub struct SpeciesMetadata {
 
     /// Valid name of the specie.
     #[unique]
-    pub valid_name: Option<String>,
+    pub species: Option<String>,
 
     /// Number of species for this level.
     pub species_count: i32,
@@ -663,7 +663,7 @@ impl SpeciesMetadata {
                 "order",
                 family,
                 genus,
-                valid_name,
+                species,
                 {cached_values}
             )
             (
@@ -722,7 +722,7 @@ impl SpeciesMetadata {
                 FROM
                     species_metadatas
                 WHERE
-                    species_metadatas.valid_name IS NOT NULL
+                    species_metadatas.species IS NOT NULL
                 GROUP BY
                     reign,
                     phylum,
@@ -759,7 +759,7 @@ impl SpeciesMetadata {
                     species_metadatas
                 WHERE
                     species_metadatas.genus IS NOT NULL AND
-                    species_metadatas.valid_name IS NOT NULL
+                    species_metadatas.species IS NOT NULL
                 GROUP BY
                     reign,
                     phylum,
@@ -794,7 +794,7 @@ impl SpeciesMetadata {
                 WHERE
                     species_metadatas.family IS NOT NULL AND
                     species_metadatas.genus IS NOT NULL AND
-                    species_metadatas.valid_name IS NOT NULL
+                    species_metadatas.species IS NOT NULL
                 GROUP BY
                     reign,
                     phylum,
@@ -827,7 +827,7 @@ impl SpeciesMetadata {
                     species_metadatas.class IS NOT NULL AND
                     species_metadatas.family IS NOT NULL AND
                     species_metadatas.genus IS NOT NULL AND
-                    species_metadatas.valid_name IS NOT NULL
+                    species_metadatas.species IS NOT NULL
                 GROUP BY
                     reign,
                     phylum,
@@ -858,7 +858,7 @@ impl SpeciesMetadata {
                     species_metadatas.class IS NOT NULL AND
                     species_metadatas.family IS NOT NULL AND
                     species_metadatas.genus IS NOT NULL AND
-                    species_metadatas.valid_name IS NOT NULL
+                    species_metadatas.species IS NOT NULL
                 GROUP BY
                     reign,
                     phylum
@@ -887,7 +887,7 @@ impl SpeciesMetadata {
                     species_metadatas.class IS NOT NULL AND
                     species_metadatas.family IS NOT NULL AND
                     species_metadatas.genus IS NOT NULL AND
-                    species_metadatas.valid_name IS NOT NULL
+                    species_metadatas.species IS NOT NULL
                 GROUP BY
                     reign
             );

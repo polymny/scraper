@@ -21,7 +21,6 @@ window.Plot = (function() {
 
             this.parent = null;
             this.name = name;
-            this.width = 1;
             this.color = 'hsl(' + (colorCounter * 20) + 'deg, 90%, 80%)';
             this.children = [];
             this.hovering = false;
@@ -44,7 +43,14 @@ window.Plot = (function() {
                     }
                 }
 
+                if (name === null) {
+                    // It means we're dealing with a species
+                    name = row[depthToTaxon(6)];
+                    depth = 6;
+                }
+
                 let tree = new Tree(name, depth);
+                tree.metadata = row;
 
                 if (root === null) {
                     root = tree;
@@ -69,8 +75,11 @@ window.Plot = (function() {
                 arg.parent = this;
             }
             this.children.push(...arguments);
-            this.width = this.children.length;
             return this;
+        }
+
+        width() {
+            return this.metadata.species_count || 1;
         }
 
         log() {
@@ -156,7 +165,7 @@ window.Plot = (function() {
 
             // Third level
             let currentAngle = 0;
-            let total = this.currentRoot.children.map(x => x.children.map(x => x.width).reduce((a, b) => a + b, 0)).reduce((a, b) => a + b, 0) / (2 * Math.PI);
+            let total = this.currentRoot.children.map(x => x.children.map(x => x.width()).reduce((a, b) => a + b, 0)).reduce((a, b) => a + b, 0) / (2 * Math.PI);
 
             if (this.currentRoot.children.length > 0 && this.currentRoot.children[0].children.length > 0) {
 
@@ -166,13 +175,13 @@ window.Plot = (function() {
                         this.ctx.fillStyle = child.color;
                         this.ctx.beginPath();
                         this.ctx.moveTo(this.center.x, this.center.y);
-                        this.ctx.arc(this.center.x, this.center.y, this.thirdWidth, currentAngle, currentAngle + child.width / total);
+                        this.ctx.arc(this.center.x, this.center.y, this.thirdWidth, currentAngle, currentAngle + child.width() / total);
                         this.ctx.closePath();
                         this.ctx.fill();
 
                         // Draw text
                         let r = (this.secondWidth + this.thirdWidth) / 2;
-                        let theta = currentAngle + child.width / (2 * total);
+                        let theta = currentAngle + child.width() / (2 * total);
 
                         let x = this.center.x + r * Math.cos(theta);
                         let y = this.center.y + r * Math.sin(theta);
@@ -183,7 +192,7 @@ window.Plot = (function() {
                         this.ctx.save();
                         this.ctx.translate(this.center.x, this.center.y);
 
-                        let angle = currentAngle + child.width / (2 * total);
+                        let angle = currentAngle + child.width() / (2 * total);
                         let reverse = (angle + Math.PI / 2) % (2 * Math.PI) > Math.PI;
 
                         this.ctx.rotate(angle + (reverse ? -0.025 : 0.025));
@@ -199,7 +208,7 @@ window.Plot = (function() {
                         // this.ctx.fillText(child.name, x - width / 2, y);
 
 
-                        currentAngle += child.width / total;
+                        currentAngle += child.width() / total;
                     }
                 }
 
@@ -212,11 +221,11 @@ window.Plot = (function() {
                         // Arc for the child
                         this.ctx.beginPath();
                         this.ctx.moveTo(this.center.x, this.center.y);
-                        this.ctx.arc(this.center.x, this.center.y, this.thirdWidth, currentAngle, currentAngle + child.width / total);
+                        this.ctx.arc(this.center.x, this.center.y, this.thirdWidth, currentAngle, currentAngle + child.width() / total);
                         this.ctx.closePath();
                         this.ctx.stroke();
 
-                        currentAngle += child.width / total;
+                        currentAngle += child.width() / total;
                     }
                 }
 
@@ -224,7 +233,7 @@ window.Plot = (function() {
 
             // Second level
             currentAngle = 0;
-            total = this.currentRoot.children.map(x => x.width).reduce((a, b) => a + b, 0) / (2 * Math.PI);
+            total = this.currentRoot.children.map(x => x.width()).reduce((a, b) => a + b, 0) / (2 * Math.PI);
 
             // Increase width if last level
             let localWidth = this.secondWidth;
@@ -238,13 +247,13 @@ window.Plot = (function() {
                 this.ctx.fillStyle = child.color;
                 this.ctx.beginPath();
                 this.ctx.moveTo(this.center.x, this.center.y);
-                this.ctx.arc(this.center.x, this.center.y, localWidth, currentAngle, currentAngle + child.width / total);
+                this.ctx.arc(this.center.x, this.center.y, localWidth, currentAngle, currentAngle + child.width() / total);
                 this.ctx.closePath();
                 this.ctx.fill();
 
                 // Draw text
                 let r = (this.firstWidth + localWidth)  / 2;
-                let theta = currentAngle + child.width / (2 * total);
+                let theta = currentAngle + child.width() / (2 * total);
 
                 let x = this.center.x + r * Math.cos(theta);
                 let y = this.center.y + r * Math.sin(theta);
@@ -255,7 +264,7 @@ window.Plot = (function() {
                 this.ctx.translate(this.center.x, this.center.y);
 
 
-                let angle = currentAngle + child.width / (2 * total);
+                let angle = currentAngle + child.width() / (2 * total);
                 let reverse = (angle + Math.PI / 2) % (2 * Math.PI) > Math.PI;
                 this.ctx.rotate(angle + (reverse ? -0.025 : 0.025));
                 this.ctx.translate(r, 0);
@@ -268,7 +277,7 @@ window.Plot = (function() {
                 this.ctx.restore();
 
 
-                currentAngle += child.width / total;
+                currentAngle += child.width() / total;
             }
 
             // Second level lines
@@ -279,11 +288,11 @@ window.Plot = (function() {
                 // Arc for the child
                 this.ctx.beginPath();
                 this.ctx.moveTo(this.center.x, this.center.y);
-                this.ctx.arc(this.center.x, this.center.y, localWidth, currentAngle, currentAngle + child.width / total);
+                this.ctx.arc(this.center.x, this.center.y, localWidth, currentAngle, currentAngle + child.width() / total);
                 this.ctx.closePath();
                 this.ctx.stroke();
 
-                currentAngle += child.width / total;
+                currentAngle += child.width() / total;
             }
 
 
@@ -327,10 +336,10 @@ window.Plot = (function() {
             if (r2 < localWidth * localWidth) {
 
                 let currentAngle = 0;
-                let total = this.currentRoot.children.map(x => x.width).reduce((a, b) => a + b, 0) / (2 * Math.PI);
+                let total = this.currentRoot.children.map(x => x.width()).reduce((a, b) => a + b, 0) / (2 * Math.PI);
 
                 for (let child of this.currentRoot.children) {
-                    currentAngle += child.width / total;
+                    currentAngle += child.width() / total;
 
                     if (theta < currentAngle) {
                         return child;
@@ -341,11 +350,11 @@ window.Plot = (function() {
             if (r2 < this.thirdWidth * this.thirdWidth) {
 
                 let currentAngle = 0;
-                let total = this.currentRoot.children.map(x => x.children.map(x => x.width).reduce((a, b) => a + b, 0)).reduce((a, b) => a + b, 0) / (2 * Math.PI);
+                let total = this.currentRoot.children.map(x => x.children.map(x => x.width()).reduce((a, b) => a + b, 0)).reduce((a, b) => a + b, 0) / (2 * Math.PI);
 
                 for (let tmpChild of this.currentRoot.children) {
                     for (let child of tmpChild.children) {
-                        currentAngle += child.width / total;
+                        currentAngle += child.width() / total;
 
                         if (theta < currentAngle) {
                             return child;

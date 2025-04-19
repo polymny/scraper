@@ -342,26 +342,22 @@ impl Tree {
 /// Routes for dynamic plotly.
 #[get("/plotly/<taxon>/<value>")]
 pub async fn dynamic_plotly(taxon: Taxon, value: &str, db: Db) -> Result<Value> {
-    let taxon_str = match taxon {
-        Taxon::Species => "valid_name",
-        Taxon::Order => "species_metadatas.order",
-        _ => taxon.to_str(),
-    };
+    let taxon_str = taxon.to_str();
 
     let null = match taxon {
         Taxon::Reign => vec![
             "species_metadatas.order",
             "species_metadatas.family",
             "species_metadatas.genus",
-            "species_metadatas.valid_name",
+            "species_metadatas.species",
         ],
         Taxon::Phylum => vec![
             "species_metadatas.family",
             "species_metadatas.genus",
-            "species_metadatas.valid_name",
+            "species_metadatas.species",
         ],
-        Taxon::Class => vec!["species_metadatas.genus", "species_metadatas.valid_name"],
-        Taxon::Order => vec!["species_metadatas.valid_name"],
+        Taxon::Class => vec!["species_metadatas.genus", "species_metadatas.species"],
+        Taxon::Order => vec!["species_metadatas.species"],
         Taxon::Family => vec![],
         Taxon::Genus => vec![],
         Taxon::Species => vec![],
@@ -379,9 +375,9 @@ pub async fn dynamic_plotly(taxon: Taxon, value: &str, db: Db) -> Result<Value> 
         r#"
             SELECT *
             FROM species_metadatas
-            WHERE {taxon_str} = $1 {null_query}
-            GROUP BY id, reign, phylum, class, "order", family, genus, valid_name, {meta}
-            ORDER BY reign NULLS FIRST, phylum NULLS FIRST, class NULLS FIRST, "order" NULLS FIRST, family NULLS FIRST, genus NULLS FIRST, valid_name NULLS FIRST
+            WHERE species_metadatas.{taxon_str} = $1 {null_query}
+            GROUP BY id, reign, phylum, class, "order", family, genus, species, {meta}
+            ORDER BY reign NULLS FIRST, phylum NULLS FIRST, class NULLS FIRST, "order" NULLS FIRST, family NULLS FIRST, genus NULLS FIRST, species NULLS FIRST
         ;"#,
     );
 
