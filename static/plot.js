@@ -9,13 +9,36 @@ window.Plot = (function() {
         static MEDIAS_CROPPED_OVER_MEDIAS = new Stat("medias_cropped_over_medias");
         static MEDIAS_CROPPED_OVER_MEDIAS_DOWNLOADED = new Stat("medias_cropped_over_medias_downloaded");
 
+        static all() {
+            return [
+                Stat.SPECIES_COUNT,
+                Stat.MEDIAS_COUNT,
+                Stat.MEDIAS_DOWNLOADED_COUNT,
+                Stat.MEDIAS_CROPPED_COUNT,
+                Stat.MEDIAS_DOWNLOADED_OVER_MEDIAS,
+                Stat.MEDIAS_CROPPED_OVER_MEDIAS,
+                Stat.MEDIAS_CROPPED_OVER_MEDIAS_DOWNLOADED,
+            ];
+        }
+
+        static getByName(name) {
+            for (let stat of Stat.all()) {
+                if (stat.name === name) {
+                    return stat;
+                }
+            }
+
+            throw new Error("Stat.getByName failed: " + name);
+        }
+
         constructor(name) {
             this.name = name;
         }
 
+
         get(metadata) {
             switch (this.name) {
-                case Stat.MEDIAS_DOWNLOADED_OVER_MEDIAS.name:         return metadata.medias_downloaded / metadata.medias_count;
+                case Stat.MEDIAS_DOWNLOADED_OVER_MEDIAS.name:         return metadata.medias_downloaded_count / metadata.medias_count;
                 case Stat.MEDIAS_CROPPED_OVER_MEDIAS.name:            return metadata.medias_cropped_count / metadata.medias_count;
                 case Stat.MEDIAS_CROPPED_OVER_MEDIAS_DOWNLOADED.name: return metadata.medias_cropped_count / metadata.medias_downloaded_count;
                 default:                                              return metadata[this.name];
@@ -50,9 +73,6 @@ window.Plot = (function() {
             this.children = [];
             this.hovering = false;
             this.depth = depth;
-
-            this.widthStat = Stat.SPECIES_COUNT;
-            this.colorStat = Stat.MEDIAS_CROPPED_OVER_MEDIAS_DOWNLOADED;
         }
 
         static fromJson(value) {
@@ -108,24 +128,24 @@ window.Plot = (function() {
             return this;
         }
 
-        width() {
-            if (this.widthStat == undefined) {
+        width(stat) {
+            if (stat == undefined) {
                 throw new Error("Width stat is not defined");
             }
-            return this.widthStat.get(this.metadata) || 1;
+            return stat.get(this.metadata) || 1;
         }
 
         // Returns a float between 0 and 1
-        colorValue() {
-            if (this.colorStat == undefined) {
+        colorValue(stat) {
+            if (stat == undefined) {
                 throw new Error("Color stat is not defined");
             }
-            return this.colorStat.get(this.metadata);
+            return stat.get(this.metadata);
         }
 
         // Returns a canvas ready color from colorValue
-        color() {
-            let value = this.colorValue();
+        color(stat) {
+            let value = this.colorValue(stat);
 
             let r = Math.round((1 - value) * 255);
             let g = Math.round(value * 255);
@@ -159,6 +179,9 @@ window.Plot = (function() {
             } else {
                 throw new Error("Attempted to create chart on unknown element");
             }
+
+            this.widthStat = Stat.SPECIES_COUNT;
+            this.colorStat = Stat.MEDIAS_CROPPED_OVER_MEDIAS_DOWNLOADED;
 
             this.root = root;
             this.currentRoot = root;
@@ -217,23 +240,23 @@ window.Plot = (function() {
 
             // Third level
             let currentAngle = 0;
-            let total = this.currentRoot.children.map(x => x.children.map(x => x.width()).reduce((a, b) => a + b, 0)).reduce((a, b) => a + b, 0) / (2 * Math.PI);
+            let total = this.currentRoot.children.map(x => x.children.map(x => x.width(this.widthStat)).reduce((a, b) => a + b, 0)).reduce((a, b) => a + b, 0) / (2 * Math.PI);
 
             if (this.currentRoot.children.length > 0 && this.currentRoot.children[0].children.length > 0) {
 
                 for (let tmpChild of this.currentRoot.children) {
                     for (let child of tmpChild.children) {
                         // Arc for the child
-                        this.ctx.fillStyle = child.color();
+                        this.ctx.fillStyle = child.color(this.colorStat);
                         this.ctx.beginPath();
                         this.ctx.moveTo(this.center.x, this.center.y);
-                        this.ctx.arc(this.center.x, this.center.y, this.thirdWidth, currentAngle, currentAngle + child.width() / total);
+                        this.ctx.arc(this.center.x, this.center.y, this.thirdWidth, currentAngle, currentAngle + child.width(this.widthStat) / total);
                         this.ctx.closePath();
                         this.ctx.fill();
 
                         // Draw text
                         let r = (this.secondWidth + this.thirdWidth) / 2;
-                        let theta = currentAngle + child.width() / (2 * total);
+                        let theta = currentAngle + child.width(this.widthStat) / (2 * total);
 
                         let x = this.center.x + r * Math.cos(theta);
                         let y = this.center.y + r * Math.sin(theta);
@@ -244,7 +267,7 @@ window.Plot = (function() {
                         this.ctx.save();
                         this.ctx.translate(this.center.x, this.center.y);
 
-                        let angle = currentAngle + child.width() / (2 * total);
+                        let angle = currentAngle + child.width(this.widthStat) / (2 * total);
                         let reverse = (angle + Math.PI / 2) % (2 * Math.PI) > Math.PI;
 
                         this.ctx.rotate(angle + (reverse ? -0.025 : 0.025));
@@ -260,7 +283,7 @@ window.Plot = (function() {
                         // this.ctx.fillText(child.name, x - width / 2, y);
 
 
-                        currentAngle += child.width() / total;
+                        currentAngle += child.width(this.widthStat) / total;
                     }
                 }
 
@@ -273,11 +296,11 @@ window.Plot = (function() {
                         // Arc for the child
                         this.ctx.beginPath();
                         this.ctx.moveTo(this.center.x, this.center.y);
-                        this.ctx.arc(this.center.x, this.center.y, this.thirdWidth, currentAngle, currentAngle + child.width() / total);
+                        this.ctx.arc(this.center.x, this.center.y, this.thirdWidth, currentAngle, currentAngle + child.width(this.widthStat) / total);
                         this.ctx.closePath();
                         this.ctx.stroke();
 
-                        currentAngle += child.width() / total;
+                        currentAngle += child.width(this.widthStat) / total;
                     }
                 }
 
@@ -285,7 +308,7 @@ window.Plot = (function() {
 
             // Second level
             currentAngle = 0;
-            total = this.currentRoot.children.map(x => x.width()).reduce((a, b) => a + b, 0) / (2 * Math.PI);
+            total = this.currentRoot.children.map(x => x.width(this.widthStat)).reduce((a, b) => a + b, 0) / (2 * Math.PI);
 
             // Increase width if last level
             let localWidth = this.secondWidth;
@@ -296,16 +319,16 @@ window.Plot = (function() {
 
             for (let child of this.currentRoot.children) {
                 // Arc for the child
-                this.ctx.fillStyle = child.color();
+                this.ctx.fillStyle = child.color(this.colorStat);
                 this.ctx.beginPath();
                 this.ctx.moveTo(this.center.x, this.center.y);
-                this.ctx.arc(this.center.x, this.center.y, localWidth, currentAngle, currentAngle + child.width() / total);
+                this.ctx.arc(this.center.x, this.center.y, localWidth, currentAngle, currentAngle + child.width(this.widthStat) / total);
                 this.ctx.closePath();
                 this.ctx.fill();
 
                 // Draw text
                 let r = (this.firstWidth + localWidth)  / 2;
-                let theta = currentAngle + child.width() / (2 * total);
+                let theta = currentAngle + child.width(this.widthStat) / (2 * total);
 
                 let x = this.center.x + r * Math.cos(theta);
                 let y = this.center.y + r * Math.sin(theta);
@@ -316,7 +339,7 @@ window.Plot = (function() {
                 this.ctx.translate(this.center.x, this.center.y);
 
 
-                let angle = currentAngle + child.width() / (2 * total);
+                let angle = currentAngle + child.width(this.widthStat) / (2 * total);
                 let reverse = (angle + Math.PI / 2) % (2 * Math.PI) > Math.PI;
                 this.ctx.rotate(angle + (reverse ? -0.025 : 0.025));
                 this.ctx.translate(r, 0);
@@ -329,7 +352,7 @@ window.Plot = (function() {
                 this.ctx.restore();
 
 
-                currentAngle += child.width() / total;
+                currentAngle += child.width(this.widthStat) / total;
             }
 
             // Second level lines
@@ -340,11 +363,11 @@ window.Plot = (function() {
                 // Arc for the child
                 this.ctx.beginPath();
                 this.ctx.moveTo(this.center.x, this.center.y);
-                this.ctx.arc(this.center.x, this.center.y, localWidth, currentAngle, currentAngle + child.width() / total);
+                this.ctx.arc(this.center.x, this.center.y, localWidth, currentAngle, currentAngle + child.width(this.widthStat) / total);
                 this.ctx.closePath();
                 this.ctx.stroke();
 
-                currentAngle += child.width() / total;
+                currentAngle += child.width(this.widthStat) / total;
             }
 
 
@@ -388,10 +411,10 @@ window.Plot = (function() {
             if (r2 < localWidth * localWidth) {
 
                 let currentAngle = 0;
-                let total = this.currentRoot.children.map(x => x.width()).reduce((a, b) => a + b, 0) / (2 * Math.PI);
+                let total = this.currentRoot.children.map(x => x.width(this.widthStat)).reduce((a, b) => a + b, 0) / (2 * Math.PI);
 
                 for (let child of this.currentRoot.children) {
-                    currentAngle += child.width() / total;
+                    currentAngle += child.width(this.widthStat) / total;
 
                     if (theta < currentAngle) {
                         return child;
@@ -402,11 +425,11 @@ window.Plot = (function() {
             if (r2 < this.thirdWidth * this.thirdWidth) {
 
                 let currentAngle = 0;
-                let total = this.currentRoot.children.map(x => x.children.map(x => x.width()).reduce((a, b) => a + b, 0)).reduce((a, b) => a + b, 0) / (2 * Math.PI);
+                let total = this.currentRoot.children.map(x => x.children.map(x => x.width(this.widthStat)).reduce((a, b) => a + b, 0)).reduce((a, b) => a + b, 0) / (2 * Math.PI);
 
                 for (let tmpChild of this.currentRoot.children) {
                     for (let child of tmpChild.children) {
-                        currentAngle += child.width() / total;
+                        currentAngle += child.width(this.widthStat) / total;
 
                         if (theta < currentAngle) {
                             return child;
@@ -438,7 +461,11 @@ window.Plot = (function() {
         }
 
         onClick(event) {
-            let child = this.getElement(event.offsetX - this.center.x, event.offsetY - this.center.y);
+            let child = this.getElement(
+                event.offsetX * this.canvas.width / this.canvas.offsetWidth - this.center.x,
+                event.offsetY * this.canvas.height / this.canvas.offsetHeight- this.center.y
+            );
+
             if (child !== undefined) {
                 this.trigger('click', child, event);
             }
@@ -446,7 +473,10 @@ window.Plot = (function() {
 
         onMouseMove(event) {
             let currentHovering = this.getCurrentHovering();
-            let nextHovering = this.getElement(event.offsetX - this.center.x, event.offsetY - this.center.y);
+            let nextHovering = this.getElement(
+                event.offsetX * this.canvas.width / this.canvas.offsetWidth - this.center.x,
+                event.offsetY * this.canvas.height / this.canvas.offsetHeight - this.center.y
+            );
 
             if (currentHovering !== nextHovering) {
                 if (currentHovering !== undefined) {
@@ -528,19 +558,68 @@ window.Plot = (function() {
         table.appendChild(body);
         info.appendChild(table);
 
-        // Example media
-        if (tree.metadata.example_media_path !== null) {
-            let exampleTitle = document.createElement('h3');
-            exampleTitle.innerHTML = 'Exemple';
-            info.appendChild(exampleTitle);
 
-            let example = document.createElement('img');
-            example.classList.add('blur');
-            example.setAttribute('src', '/data/medias/' + tree.metadata.example_media_path);
-            info.appendChild(example);
-        }
 
         return info;
+    }
+
+    function generateExample(tree) {
+        let example = document.getElementById('example');;
+        example.setAttribute('src', '/data/medias/' + tree.metadata.example_media_path);
+    }
+
+    function generateControls(chart) {
+        let controls = document.getElementById('controls');
+
+        let widthTitle = document.createElement('h3');
+        widthTitle.innerHTML = "Taille des cercles";
+        controls.appendChild(widthTitle);
+
+        let widthSelect = document.createElement('select');
+
+        for (let stat of Stat.all()) {
+            let option = document.createElement('option');
+            option.setAttribute('value', stat.name);
+
+            if (chart.widthStat.name === stat.name) {
+                option.setAttribute('selected', 'selected');
+            }
+
+            option.innerHTML = stat.name;
+            widthSelect.appendChild(option);
+        }
+
+        widthSelect.addEventListener('change', event => {
+            chart.widthStat = Stat.getByName(event.target.value);
+            chart.render();
+        });
+
+        controls.appendChild(widthSelect);
+
+        let colorTitle = document.createElement('h3');
+        colorTitle.innerHTML = "Couleur des cercles";
+        controls.appendChild(colorTitle);
+
+        let colorSelect = document.createElement('select');
+
+        for (let stat of Stat.all()) {
+            let option = document.createElement('option');
+            option.setAttribute('value', stat.name);
+
+            if (chart.colorStat.name === stat.name) {
+                option.setAttribute('selected', 'selected');
+            }
+
+            option.innerHTML = stat.name;
+            colorSelect.appendChild(option);
+        }
+
+        colorSelect.addEventListener('change', event => {
+            chart.colorStat = Stat.getByName(event.target.value);
+            chart.render();
+        });
+
+        controls.appendChild(colorSelect);
     }
 
     async function main() {
@@ -553,6 +632,7 @@ window.Plot = (function() {
         let tree = Plot.Tree.fromJson(json);
 
         let chart = new Plot.Chart("sunburst", tree);
+        generateControls(chart);
 
         chart.addEventListener('click', async function(child, event) {
             // If ctrl key is pressed down, or mouse wheel click, open list of species in new tab
@@ -586,6 +666,8 @@ window.Plot = (function() {
             } else {
                 infoElement.replaceChild(generated, infoChild);
             }
+
+            generateExample(child);
 
             infoChild = generated;
         });
