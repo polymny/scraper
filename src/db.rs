@@ -599,6 +599,9 @@ pub struct SpeciesMetadata {
     #[unique]
     pub species: Option<String>,
 
+    /// Example media.
+    pub example_media_path: Option<String>,
+
     /// Number of species for this level.
     pub species_count: i32,
 
@@ -616,6 +619,7 @@ impl SpeciesMetadata {
     /// Returns the cached values.
     pub fn cached_values() -> Vec<&'static str> {
         vec![
+            "example_media_path",
             "species_count",
             "medias_count",
             "medias_downloaded_count",
@@ -637,6 +641,7 @@ impl SpeciesMetadata {
         // Setup some stuff to help us write sql
         let cached_values = SpeciesMetadata::cached_values().join(",");
         let computed_values = r#"
+            speciess.example_media_path,
             1,
             COUNT(medias.id),
             COUNT(CASE WHEN medias.path IS NOT NULL THEN 1 ELSE NULL END),
@@ -644,6 +649,7 @@ impl SpeciesMetadata {
         "#;
 
         let aggregated_values = r#"
+            (ARRAY_AGG(species_metadatas.example_media_path) FILTER (WHERE species_metadatas.example_media_path IS NOT NULL))[1],
             SUM(species_metadatas.species_count),
             SUM(species_metadatas.medias_count),
             SUM(species_metadatas.medias_downloaded_count),
@@ -690,7 +696,8 @@ impl SpeciesMetadata {
                     "order",
                     family,
                     genus,
-                    valid_name
+                    valid_name,
+                    example_media_path
             );
         "#
         );

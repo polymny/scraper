@@ -1,4 +1,30 @@
 window.Plot = (function() {
+
+    class Stat {
+        static SPECIES_COUNT = new Stat("species_count");
+        static MEDIAS_COUNT = new Stat("medias_count");
+        static MEDIAS_DOWNLOADED_COUNT = new Stat("medias_downloaded_count");
+        static MEDIAS_CROPPED_COUNT = new Stat("medias_cropped_count");
+        static MEDIAS_DOWNLOADED_OVER_MEDIAS = new Stat("medias_downloaded_over_medias");
+        static MEDIAS_CROPPED_OVER_MEDIAS = new Stat("medias_cropped_over_medias");
+        static MEDIAS_CROPPED_OVER_MEDIAS_DOWNLOADED = new Stat("medias_cropped_over_medias_downloaded");
+
+        constructor(name) {
+            this.name = name;
+        }
+
+        get(metadata) {
+            switch (this.name) {
+                case Stat.MEDIAS_DOWNLOADED_OVER_MEDIAS.name:         return metadata.medias_downloaded / metadata.medias_count;
+                case Stat.MEDIAS_CROPPED_OVER_MEDIAS.name:            return metadata.medias_cropped_count / metadata.medias_count;
+                case Stat.MEDIAS_CROPPED_OVER_MEDIAS_DOWNLOADED.name: return metadata.medias_cropped_count / metadata.medias_downloaded_count;
+                default:                                              return metadata[this.name];
+            }
+        }
+    }
+
+
+
     let colorCounter = 0;
 
     function depthToTaxon(depth) {
@@ -24,6 +50,9 @@ window.Plot = (function() {
             this.children = [];
             this.hovering = false;
             this.depth = depth;
+
+            this.widthStat = Stat.SPECIES_COUNT;
+            this.colorStat = Stat.MEDIAS_CROPPED_OVER_MEDIAS_DOWNLOADED;
         }
 
         static fromJson(value) {
@@ -80,12 +109,18 @@ window.Plot = (function() {
         }
 
         width() {
-            return this.metadata.medias_downloaded_count || 1;
+            if (this.widthStat == undefined) {
+                throw new Error("Width stat is not defined");
+            }
+            return this.widthStat.get(this.metadata) || 1;
         }
 
         // Returns a float between 0 and 1
         colorValue() {
-            return this.metadata.medias_cropped_count / this.metadata.medias_downloaded_count;
+            if (this.colorStat == undefined) {
+                throw new Error("Color stat is not defined");
+            }
+            return this.colorStat.get(this.metadata);
         }
 
         // Returns a canvas ready color from colorValue
@@ -427,5 +462,136 @@ window.Plot = (function() {
         }
     }
 
-    return { Tree, Chart, depthToTaxon };
+    function generateInfo(tree) {
+        // Root element
+        let info = document.createElement('div');
+
+        // Title for taxonomy part of info
+        let taxTitle = document.createElement('h3');
+        taxTitle.innerHTML = "Taxonomie";
+        info.appendChild(taxTitle);
+
+        // Hierarchy of taxonomy
+        let tax = document.createElement('ul');
+
+        let hier = [];
+        let iter = tree;
+
+        while (iter !== null) {
+            hier.push(iter);
+            iter = iter.parent;
+        }
+
+        for (let i = hier.length - 1; i >= 0; i--) {
+            let current = hier[i];
+
+            let item = document.createElement('li');
+
+            let link = document.createElement('a');
+            link.innerHTML = current.name;
+            link.setAttribute('href', '/species/' + Plot.depthToTaxon(current.depth) + '/' + current.name + '/1');
+            item.appendChild(link);
+
+            tax.appendChild(item);
+        }
+
+        info.appendChild(tax);
+
+        // All metadata
+        let metadataTitle = document.createElement('h3');
+        metadataTitle.innerHTML = 'Metadonnées';
+        info.appendChild(metadataTitle);
+
+        let table = document.createElement('table');
+        let body  = document.createElement('tbody');
+
+        for (let key in tree.metadata) {
+
+            if (['id', 'reign', 'phylum', 'class', 'order', 'family', 'genus', 'species', 'example_media_path'].indexOf(key) === -1) {
+                let row = document.createElement('tr');
+
+                let rowHeading = document.createElement('th');
+                rowHeading.innerHTML = key;
+
+                let rowCell = document.createElement('td');
+                rowCell.classList.add('has-text-right');
+                rowCell.innerHTML = tree.metadata[key].toLocaleString();
+
+                row.appendChild(rowHeading);
+                row.appendChild(rowCell);
+
+                body.appendChild(row);
+            }
+
+        }
+
+        table.appendChild(body);
+        info.appendChild(table);
+
+        // Example media
+        if (tree.metadata.example_media_path !== null) {
+            let exampleTitle = document.createElement('h3');
+            exampleTitle.innerHTML = 'Exemple';
+            info.appendChild(exampleTitle);
+
+            let example = document.createElement('img');
+            example.classList.add('blur');
+            example.setAttribute('src', '/data/medias/' + tree.metadata.example_media_path);
+            info.appendChild(example);
+        }
+
+        return info;
+    }
+
+    async function main() {
+        let json = await fetch('/plotly/reign/Animalia');
+        json = await json.json();
+
+        let infoElement = document.getElementById('info');
+        let infoChild = null;
+
+        let tree = Plot.Tree.fromJson(json);
+
+        let chart = new Plot.Chart("sunburst", tree);
+
+        chart.addEventListener('click', async function(child, event) {
+            // If ctrl key is pressed down, or mouse wheel click, open list of species in new tab
+            if (event.type === "auxclick" || event.ctrlKey) {
+                window.open('/species/' + Plot.depthToTaxon(child.depth) + '/' + child.name + '/1');
+                return;
+            }
+
+            if (chart.currentRoot === child) {
+                if (child.parent !== null) {
+                    chart.currentRoot = child.parent;
+                }
+            } else {
+                // Fetch what we need
+                let req = await fetch('/plotly/' + Plot.depthToTaxon(child.depth) + '/' + child.name);
+                let resp = await req.json();
+                child.children = Plot.Tree.fromJson(resp, child.depth).children;
+                for (let subchild of child.children) {
+                    subchild.parent = child;
+                }
+                chart.currentRoot = child;
+            }
+            chart.render();
+        });
+
+        chart.addEventListener('mouseover', child => {
+            let generated = generateInfo(child);
+
+            if (infoChild === null) {
+                infoElement.appendChild(generated);
+            } else {
+                infoElement.replaceChild(generated, infoChild);
+            }
+
+            infoChild = generated;
+        });
+
+        chart.render();
+    }
+
+    return { Tree, Chart, depthToTaxon, main };
 })();

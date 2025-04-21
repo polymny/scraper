@@ -15,8 +15,7 @@
         <div class="column">
             <div id="sunburst"></div>
         </div>
-        <div class="column">
-            <h1 class="title is-3" id="valid-name"></h1>
+        <div class="column content" id="info">
         </div>
     </div>
 
@@ -25,53 +24,13 @@
         <ul>
             <li>Ctrl + clic ou clic molette pour ouvrir le taxon dans un nouvel onglet</li>
         </ul>
-    <div>
+    </div>
 </section>
 {% endblock content %}
 
 {% block extrajs %}
 <script src="/static/plot.js"></script>
 <script>
-    async function main() {
-        let json = await fetch('/plotly/reign/Animalia');
-        json = await json.json();
-
-        let validNameElement = document.getElementById('valid-name');
-        let tree = Plot.Tree.fromJson(json);
-
-        let chart = new Plot.Chart("sunburst", tree);
-
-        chart.addEventListener('click', async function(child, event) {
-            // If ctrl key is pressed down, or mouse wheel click, open list of species in new tab
-            if (event.type === "auxclick" || event.ctrlKey) {
-                window.open('/species/' + Plot.depthToTaxon(child.depth) + '/' + child.name + '/1');
-                return;
-            }
-
-            if (chart.currentRoot === child) {
-                if (child.parent !== null) {
-                    chart.currentRoot = child.parent;
-                }
-            } else {
-                // Fetch what we need
-                let req = await fetch('/plotly/' + Plot.depthToTaxon(child.depth) + '/' + child.name);
-                let resp = await req.json();
-                child.children = Plot.Tree.fromJson(resp, child.depth).children;
-                for (let subchild of child.children) {
-                    subchild.parent = child;
-                }
-                chart.currentRoot = child;
-            }
-            chart.render();
-        });
-
-        chart.addEventListener('mouseover', child => {
-            validNameElement.innerHTML = '<a href="' + '/species/' + Plot.depthToTaxon(child.depth) + '/' + child.name + '/1' + '">' + child.name + '</a>';
-        });
-
-        chart.render();
-    }
-
-    main();
+    Plot.main();
 </script>
 {% endblock extrajs %}
