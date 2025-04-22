@@ -564,7 +564,10 @@ window.Plot = (function() {
     }
 
     function generateExample(tree) {
-        let example = document.getElementById('example');;
+        let exampleTitle = document.getElementById('example-title');
+        exampleTitle.style.display = "block";
+
+        let example = document.getElementById('example');
         example.setAttribute('src', '/data/medias/' + tree.metadata.example_media_path);
     }
 
