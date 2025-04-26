@@ -31,8 +31,10 @@ canvas.main {
 
 {% block extranavbar %}
 <div class="navbar-item">
-    <div class="navbar-item js-modal-trigger" data-target="options-modal">
-        Options
+    <div class="buttons">
+        <a class="button is-white js-modal-trigger" data-target="options-modal">
+            <strong>Options</strong>
+        </a>
     </div>
 </div>
 {% endblock extranavbar %}
@@ -55,7 +57,22 @@ canvas.main {
 
 <div id="options-modal" class="modal">
     <div class="modal-background"></div>
-    <div id="controls" class="modal-content"></div>
+    <div class="modal-content">
+        <article class="message">
+            <div class="message-header">
+                <p>Hello World</p>
+                <button class="delete close-button" aria-label="delete"></button>
+            </div>
+            <div class="message-body content">
+                <div id="controls"></div>
+                <div class="has-text-centered">
+                    <button class="button is-link mt-6 close-button">
+                        Valider
+                    </button>
+                </div>
+            </div>
+        </article>
+    </div>
     <button class="modal-close is-large" aria-label="close"></button>
 </div>
 {% endblock content %}
@@ -63,6 +80,55 @@ canvas.main {
 {% block extrajs %}
 <script src="/static/plot.js"></script>
 <script>
+    document.addEventListener('DOMContentLoaded', () => {
+        // Functions to open and close a modal
+        function openModal($el) {
+            $el.classList.add('is-active');
+        }
+
+        function closeModal($el) {
+            $el.classList.remove('is-active');
+        }
+
+        function closeAllModals() {
+            (document.querySelectorAll('.modal') || []).forEach(($modal) => {
+                closeModal($modal);
+            });
+        }
+
+        // Add a click event on buttons to open a specific modal
+        (document.querySelectorAll('.js-modal-trigger') || []).forEach(($trigger) => {
+            const modal = $trigger.dataset.target;
+            const $target = document.getElementById(modal);
+
+            $trigger.addEventListener('click', () => {
+                openModal($target);
+            });
+        });
+
+        // Add a click event on various child elements to close the parent modal
+        (document.querySelectorAll('.modal-background, .modal-close, .modal-card-head .delete, .modal-card-foot .button') || []).forEach(($close) => {
+            const $target = $close.closest('.modal');
+
+            $close.addEventListener('click', () => {
+                closeModal($target);
+            });
+        });
+
+        (document.querySelectorAll('.close-button') || []).forEach(($close) => {
+            $close.addEventListener('click', () => {
+                closeAllModals();
+            });
+        });
+
+        // Add a keyboard event to close all modals
+        document.addEventListener('keydown', (event) => {
+            if(event.key === "Escape") {
+                closeAllModals();
+            }
+        });
+    });
+
     (async function() {
         const Plot = await initPlot();
         Plot.main();

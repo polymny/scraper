@@ -31,13 +31,14 @@
                 </a>
             </div>
             <div id="navbarBasicExample" class="navbar-menu">
-
-                <div class="navbar-end">
-                    {% block extranavbar %}
-                    {% endblock extranavbar %}
+                <div class="navbar-start">
                     <div class="navbar-item">
                         <strong>v{{ version }}</strong>
                     </div>
+                </div>
+                <div class="navbar-end">
+                    {% block extranavbar %}
+                    {% endblock extranavbar %}
                 </div>
             </div>
         </nav>
