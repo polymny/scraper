@@ -1,7 +1,69 @@
 async function initPlot() {
 
-    const COLOR_BREWER = await (await fetch('/static/colorbrewer.json')).json();
+    const COLOR_BREWER = await (await fetch('/static/colorbrewer-light.json')).json();
     const COLOR_THEME = "YlGn";
+
+    class Options {
+        constructor() {
+            let fromStorage = JSON.parse(localStorage.getItem('options')) || {};
+            this._colorTheme = fromStorage.colorTheme || "YlGn";
+            this._widthStat = Stat.getByName(fromStorage.widthStat) || Stat.SPECIES_COUNT;
+            this._colorStat = Stat.getByName(fromStorage.colorStat) || Stat.MEDIAS_CROPPED_OVER_MEDIAS_DOWNLOADED;
+        }
+
+        set colorTheme(value) {
+            this._colorTheme = value;
+            this.save();
+        }
+
+        set widthStat(value) {
+            if (value instanceof String || typeof value === "string") {
+                let stat = Stat.getByName(value);
+                if (stat !== null) {
+                    this._widthStat = stat;
+                }
+            } else if (value instanceof Stat) {
+                this._widthStat = value;
+            }
+            this.save();
+        }
+
+        set colorStat(value) {
+            if (value instanceof String || typeof value === "string") {
+                let stat = Stat.getByName(value);
+                if (stat !== null) {
+                    this._colorStat = stat;
+                }
+            } else if (value instanceof Stat) {
+                this._colorStat = value;
+            }
+            this.save();
+        }
+
+        get colorTheme() {
+            return this._colorTheme;
+        }
+
+        get widthStat() {
+            return this._widthStat;
+        }
+
+        get colorStat() {
+            return this._colorStat;
+        }
+
+        toJson() {
+            return {
+                colorTheme: this._colorTheme,
+                widthStat: this._widthStat.name,
+                colorStat: this._colorStat.name,
+            };
+        }
+
+        save() {
+            localStorage.setItem('options', JSON.stringify(this.toJson()));
+        }
+    }
 
     class Stat {
         static SPECIES_COUNT = new Stat("species_count");
@@ -31,7 +93,7 @@ async function initPlot() {
                 }
             }
 
-            throw new Error("Stat.getByName failed: " + name);
+            return null;
         }
 
         constructor(name) {
@@ -147,30 +209,29 @@ async function initPlot() {
             return this;
         }
 
-        width(stat) {
-            if (stat == undefined) {
+        width(options) {
+            if (options.widthStat == undefined) {
                 throw new Error("Width stat is not defined");
             }
-            return stat.get(this.metadata) || 1;
+            return options.widthStat.get(this.metadata) || 1;
         }
 
         // Returns a float between 0 and 1
-        colorValue(stat) {
-            if (stat == undefined) {
+        colorValue(options) {
+            if (options.colorStat == undefined) {
                 throw new Error("Color stat is not defined");
             }
-            return stat.get(this.metadata);
+            return options.colorStat.get(this.metadata);
         }
 
         // Returns a canvas ready color from colorValue
-        color(stat) {
-            let value = this.colorValue(stat);
+        color(options) {
+            let value = this.colorValue(options);
 
-            let startColor = COLOR_BREWER[COLOR_THEME]["3"][0];
-            let endColor = COLOR_BREWER[COLOR_THEME]["3"][2];
+            let startColor = COLOR_BREWER[options.colorTheme][0];
+            let endColor = COLOR_BREWER[options.colorTheme][1];
 
             return interpolateColor(startColor, endColor, value);
-
         }
 
         log() {
@@ -199,8 +260,7 @@ async function initPlot() {
                 throw new Error("Attempted to create chart on unknown element");
             }
 
-            this.widthStat = Stat.SPECIES_COUNT;
-            this.colorStat = Stat.MEDIAS_CROPPED_OVER_MEDIAS_DOWNLOADED;
+            this.options = new Options();
 
             this.root = root;
             this.currentRoot = root;
@@ -211,7 +271,7 @@ async function initPlot() {
             this.scale.height = 1000;
 
             this.scaleCtx = this.scale.getContext('2d');
-            this.drawScale();
+            this.renderScale();
 
             this.canvas = document.createElement('canvas');
             this.canvas.classList.add('main');
@@ -243,7 +303,7 @@ async function initPlot() {
             this.center = {x: this.canvas.width / 2, y: this.canvas.height / 2};
             this.radius = 0.95 * this.canvas.width;
             this.firstWidth = this.radius / 8;
-            this.secondWidth = this.radius / 4;
+            this.secondWidth = this.radius / 3.5;
             this.thirdWidth = this.radius / 2;
 
             this.ctx = this.canvas.getContext('2d');
@@ -261,18 +321,24 @@ async function initPlot() {
             };
         }
 
-        drawScale() {
-            for (let y = 0; y < 1000; y++) {
+        renderScale() {
+            this.scaleCtx.clearRect(0, 0, this.scale.width, this.scale.height);
+            for (let y = 1; y < 1000; y++) {
                 this.scaleCtx.beginPath();
                 this.scaleCtx.moveTo(0, y);
-                this.scaleCtx.lineTo(1000, y);
+                this.scaleCtx.lineTo(this.scale.width, y);
                 this.scaleCtx.strokeStyle = interpolateColor(
-                    COLOR_BREWER[COLOR_THEME]["3"][0],
-                    COLOR_BREWER[COLOR_THEME]["3"][2],
+                    COLOR_BREWER[this.options.colorTheme][0],
+                    COLOR_BREWER[this.options.colorTheme][1],
                     1 - y / 1000,
                 );
                 this.scaleCtx.stroke();
             }
+
+            this.scaleCtx.beginPath();
+            this.scaleCtx.rect(1, 1, this.scale.width - 2, this.scale.height - 2);
+            this.scaleCtx.strokeStyle = 'white';
+            this.scaleCtx.stroke();
         }
 
         addEventListener(type, callback) {
@@ -303,23 +369,23 @@ async function initPlot() {
 
             // Third level
             let currentAngle = 0;
-            let total = this.currentRoot.children.map(x => x.children.map(x => x.width(this.widthStat)).reduce((a, b) => a + b, 0)).reduce((a, b) => a + b, 0) / (2 * Math.PI);
+            let total = this.currentRoot.children.map(x => x.children.map(x => x.width(this.options)).reduce((a, b) => a + b, 0)).reduce((a, b) => a + b, 0) / (2 * Math.PI);
 
             if (this.currentRoot.children.length > 0 && this.currentRoot.children[0].children.length > 0) {
 
                 for (let tmpChild of this.currentRoot.children) {
                     for (let child of tmpChild.children) {
                         // Arc for the child
-                        this.ctx.fillStyle = child.color(this.colorStat);
+                        this.ctx.fillStyle = child.color(this.options);
                         this.ctx.beginPath();
                         this.ctx.moveTo(this.center.x, this.center.y);
-                        this.ctx.arc(this.center.x, this.center.y, this.thirdWidth, currentAngle, currentAngle + child.width(this.widthStat) / total);
+                        this.ctx.arc(this.center.x, this.center.y, this.thirdWidth, currentAngle, currentAngle + child.width(this.options) / total);
                         this.ctx.closePath();
                         this.ctx.fill();
 
                         // Draw text
                         let r = (this.secondWidth + this.thirdWidth) / 2;
-                        let theta = currentAngle + child.width(this.widthStat) / (2 * total);
+                        let theta = currentAngle + child.width(this.options) / (2 * total);
 
                         let x = this.center.x + r * Math.cos(theta);
                         let y = this.center.y + r * Math.sin(theta);
@@ -330,7 +396,7 @@ async function initPlot() {
                         this.ctx.save();
                         this.ctx.translate(this.center.x, this.center.y);
 
-                        let angle = currentAngle + child.width(this.widthStat) / (2 * total);
+                        let angle = currentAngle + child.width(this.options) / (2 * total);
                         let reverse = (angle + Math.PI / 2) % (2 * Math.PI) > Math.PI;
 
                         this.ctx.rotate(angle + (reverse ? -0.025 : 0.025));
@@ -346,7 +412,7 @@ async function initPlot() {
                         // this.ctx.fillText(child.name, x - width / 2, y);
 
 
-                        currentAngle += child.width(this.widthStat) / total;
+                        currentAngle += child.width(this.options) / total;
                     }
                 }
 
@@ -359,11 +425,11 @@ async function initPlot() {
                         // Arc for the child
                         this.ctx.beginPath();
                         this.ctx.moveTo(this.center.x, this.center.y);
-                        this.ctx.arc(this.center.x, this.center.y, this.thirdWidth, currentAngle, currentAngle + child.width(this.widthStat) / total);
+                        this.ctx.arc(this.center.x, this.center.y, this.thirdWidth, currentAngle, currentAngle + child.width(this.options) / total);
                         this.ctx.closePath();
                         this.ctx.stroke();
 
-                        currentAngle += child.width(this.widthStat) / total;
+                        currentAngle += child.width(this.options) / total;
                     }
                 }
 
@@ -371,7 +437,7 @@ async function initPlot() {
 
             // Second level
             currentAngle = 0;
-            total = this.currentRoot.children.map(x => x.width(this.widthStat)).reduce((a, b) => a + b, 0) / (2 * Math.PI);
+            total = this.currentRoot.children.map(x => x.width(this.options)).reduce((a, b) => a + b, 0) / (2 * Math.PI);
 
             // Increase width if last level
             let localWidth = this.secondWidth;
@@ -382,16 +448,16 @@ async function initPlot() {
 
             for (let child of this.currentRoot.children) {
                 // Arc for the child
-                this.ctx.fillStyle = child.color(this.colorStat);
+                this.ctx.fillStyle = child.color(this.options);
                 this.ctx.beginPath();
                 this.ctx.moveTo(this.center.x, this.center.y);
-                this.ctx.arc(this.center.x, this.center.y, localWidth, currentAngle, currentAngle + child.width(this.widthStat) / total);
+                this.ctx.arc(this.center.x, this.center.y, localWidth, currentAngle, currentAngle + child.width(this.options) / total);
                 this.ctx.closePath();
                 this.ctx.fill();
 
                 // Draw text
                 let r = (this.firstWidth + localWidth)  / 2;
-                let theta = currentAngle + child.width(this.widthStat) / (2 * total);
+                let theta = currentAngle + child.width(this.options) / (2 * total);
 
                 let x = this.center.x + r * Math.cos(theta);
                 let y = this.center.y + r * Math.sin(theta);
@@ -402,7 +468,7 @@ async function initPlot() {
                 this.ctx.translate(this.center.x, this.center.y);
 
 
-                let angle = currentAngle + child.width(this.widthStat) / (2 * total);
+                let angle = currentAngle + child.width(this.options) / (2 * total);
                 let reverse = (angle + Math.PI / 2) % (2 * Math.PI) > Math.PI;
                 this.ctx.rotate(angle + (reverse ? -0.025 : 0.025));
                 this.ctx.translate(r, 0);
@@ -415,7 +481,7 @@ async function initPlot() {
                 this.ctx.restore();
 
 
-                currentAngle += child.width(this.widthStat) / total;
+                currentAngle += child.width(this.options) / total;
             }
 
             // Second level lines
@@ -426,21 +492,21 @@ async function initPlot() {
                 // Arc for the child
                 this.ctx.beginPath();
                 this.ctx.moveTo(this.center.x, this.center.y);
-                this.ctx.arc(this.center.x, this.center.y, localWidth, currentAngle, currentAngle + child.width(this.widthStat) / total);
+                this.ctx.arc(this.center.x, this.center.y, localWidth, currentAngle, currentAngle + child.width(this.options) / total);
                 this.ctx.closePath();
                 this.ctx.stroke();
 
-                currentAngle += child.width(this.widthStat) / total;
+                currentAngle += child.width(this.options) / total;
             }
 
 
             // First level
-            this.ctx.fillStyle = "black";
+            this.ctx.fillStyle = this.currentRoot.color(this.options);
             this.ctx.beginPath();
             this.ctx.arc(this.center.x, this.center.y, this.firstWidth, 0, 2 * Math.PI, true);
             this.ctx.fill();
 
-            this.ctx.fillStyle = "white";
+            this.ctx.fillStyle = "black";
             let { width } = this.ctx.measureText(this.currentRoot.name);
             this.ctx.fillText(this.currentRoot.name, this.center.x - width / 2, this.center.y);
 
@@ -474,10 +540,10 @@ async function initPlot() {
             if (r2 < localWidth * localWidth) {
 
                 let currentAngle = 0;
-                let total = this.currentRoot.children.map(x => x.width(this.widthStat)).reduce((a, b) => a + b, 0) / (2 * Math.PI);
+                let total = this.currentRoot.children.map(x => x.width(this.options)).reduce((a, b) => a + b, 0) / (2 * Math.PI);
 
                 for (let child of this.currentRoot.children) {
-                    currentAngle += child.width(this.widthStat) / total;
+                    currentAngle += child.width(this.options) / total;
 
                     if (theta < currentAngle) {
                         return child;
@@ -488,11 +554,11 @@ async function initPlot() {
             if (r2 < this.thirdWidth * this.thirdWidth) {
 
                 let currentAngle = 0;
-                let total = this.currentRoot.children.map(x => x.children.map(x => x.width(this.widthStat)).reduce((a, b) => a + b, 0)).reduce((a, b) => a + b, 0) / (2 * Math.PI);
+                let total = this.currentRoot.children.map(x => x.children.map(x => x.width(this.options)).reduce((a, b) => a + b, 0)).reduce((a, b) => a + b, 0) / (2 * Math.PI);
 
                 for (let tmpChild of this.currentRoot.children) {
                     for (let child of tmpChild.children) {
-                        currentAngle += child.width(this.widthStat) / total;
+                        currentAngle += child.width(this.options) / total;
 
                         if (theta < currentAngle) {
                             return child;
@@ -635,6 +701,33 @@ async function initPlot() {
     function generateControls(chart) {
         let controls = document.getElementById('controls');
 
+        let colorThemeTitle = document.createElement('h3');
+        colorThemeTitle.innerHTML = "Thème de couleur";
+        controls.appendChild(colorThemeTitle);
+
+        let colorThemeSelect = document.createElement('select');
+        colorThemeSelect.classList.add('select');
+
+        for (let key in COLOR_BREWER) {
+            let option = document.createElement('option');
+            option.setAttribute('value', key);
+
+            if (key === chart.options._colorTheme) {
+                option.setAttribute('selected', 'selected');
+            }
+
+            option.innerHTML = key;
+            colorThemeSelect.appendChild(option);
+        }
+
+        colorThemeSelect.addEventListener('change', event => {
+            chart.options.colorTheme = event.target.value;
+            chart.renderScale();
+            chart.render();
+        });
+
+        controls.appendChild(colorThemeSelect);
+
         let widthTitle = document.createElement('h3');
         widthTitle.innerHTML = "Taille des cercles";
         controls.appendChild(widthTitle);
@@ -646,7 +739,7 @@ async function initPlot() {
             let option = document.createElement('option');
             option.setAttribute('value', stat.name);
 
-            if (chart.widthStat.name === stat.name) {
+            if (stat.name === chart.options.widthStat.name) {
                 option.setAttribute('selected', 'selected');
             }
 
@@ -655,7 +748,7 @@ async function initPlot() {
         }
 
         widthSelect.addEventListener('change', event => {
-            chart.widthStat = Stat.getByName(event.target.value);
+            chart.options.widthStat = event.target.value;
             chart.render();
         });
 
@@ -672,7 +765,7 @@ async function initPlot() {
             let option = document.createElement('option');
             option.setAttribute('value', stat.name);
 
-            if (chart.colorStat.name === stat.name) {
+            if (stat.name === chart.options.colorStat.name) {
                 option.setAttribute('selected', 'selected');
             }
 
@@ -681,7 +774,7 @@ async function initPlot() {
         }
 
         colorSelect.addEventListener('change', event => {
-            chart.colorStat = Stat.getByName(event.target.value);
+            chart.options.colorStat = event.target.value;
             chart.render();
         });
 
