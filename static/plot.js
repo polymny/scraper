@@ -1,4 +1,7 @@
-window.Plot = (function() {
+async function initPlot() {
+
+    const COLOR_BREWER = await (await fetch('/static/colorbrewer.json')).json();
+    const COLOR_THEME = "YlGn";
 
     class Stat {
         static SPECIES_COUNT = new Stat("species_count");
@@ -62,6 +65,22 @@ window.Plot = (function() {
             default:
                 throw new Error("taxon depth does not exist: " + depth);
         }
+    }
+
+    function interpolateColor(startColor, endColor, value) {
+        let startR = parseInt(startColor[1] + startColor[2], 16);
+        let startG = parseInt(startColor[3] + startColor[4], 16);
+        let startB = parseInt(startColor[5] + startColor[6], 16);
+
+        let endR = parseInt(endColor[1] + endColor[2], 16);
+        let endG = parseInt(endColor[3] + endColor[4], 16);
+        let endB = parseInt(endColor[5] + endColor[6], 16);
+
+        let r = Math.floor((1 - value) * startR + value * endR);
+        let g = Math.floor((1 - value) * startG + value * endG);
+        let b = Math.floor((1 - value) * startB + value * endB);
+
+        return `rgb(${r}, ${g}, ${b})`;
     }
 
     class Tree {
@@ -147,11 +166,11 @@ window.Plot = (function() {
         color(stat) {
             let value = this.colorValue(stat);
 
-            let r = Math.round((1 - value) * 255);
-            let g = Math.round(value * 255);
-            let b = 0;
+            let startColor = COLOR_BREWER[COLOR_THEME]["3"][0];
+            let endColor = COLOR_BREWER[COLOR_THEME]["3"][2];
 
-            return `rgb(${r}, ${g}, ${b})`;
+            return interpolateColor(startColor, endColor, value);
+
         }
 
         log() {
@@ -186,20 +205,50 @@ window.Plot = (function() {
             this.root = root;
             this.currentRoot = root;
 
+            this.scale = document.createElement('canvas');
+            this.scale.classList.add('scale');
+            this.scale.width = 50;
+            this.scale.height = 1000;
+
+            this.scaleCtx = this.scale.getContext('2d');
+            this.drawScale();
+
             this.canvas = document.createElement('canvas');
-            this.parent.appendChild(this.canvas);
+            this.canvas.classList.add('main');
+
+            let columns = document.createElement('div');
+            columns.classList.add('columns');
+            columns.classList.add('p-0');
+            columns.classList.add('m-0');
+
+            let scaleColumn = document.createElement('div');
+            scaleColumn.classList.add('column');
+            scaleColumn.classList.add('p-0');
+            scaleColumn.classList.add('m-0');
+            scaleColumn.appendChild(this.scale);
+
+            let mainColumn = document.createElement('div');
+            mainColumn.classList.add('column');
+            mainColumn.classList.add('p-0');
+            mainColumn.classList.add('m-0');
+            mainColumn.appendChild(this.canvas);
+
+            columns.appendChild(scaleColumn);
+            columns.appendChild(mainColumn);
+
+            this.parent.appendChild(columns);
 
             this.canvas.width = 1000;
             this.canvas.height = 1000;
             this.center = {x: this.canvas.width / 2, y: this.canvas.height / 2};
             this.radius = 0.95 * this.canvas.width;
-            this.firstWidth = this.radius / 10;
+            this.firstWidth = this.radius / 8;
             this.secondWidth = this.radius / 4;
-            this.thirdWidth = this.radius / 2.5;
+            this.thirdWidth = this.radius / 2;
 
             this.ctx = this.canvas.getContext('2d');
             this.fontSize = 20;
-            this.ctx.font = this.fontSize + 'px Verdana';
+            this.ctx.font = this.fontSize + 'px Arial';
 
             this.canvas.addEventListener('click', e => this.onClick(e));
             this.canvas.addEventListener('auxclick', e => this.onClick(e));
@@ -210,6 +259,20 @@ window.Plot = (function() {
                 mouseover: [],
                 mouseout: [],
             };
+        }
+
+        drawScale() {
+            for (let y = 0; y < 1000; y++) {
+                this.scaleCtx.beginPath();
+                this.scaleCtx.moveTo(0, y);
+                this.scaleCtx.lineTo(1000, y);
+                this.scaleCtx.strokeStyle = interpolateColor(
+                    COLOR_BREWER[COLOR_THEME]["3"][0],
+                    COLOR_BREWER[COLOR_THEME]["3"][2],
+                    1 - y / 1000,
+                );
+                this.scaleCtx.stroke();
+            }
         }
 
         addEventListener(type, callback) {
@@ -519,7 +582,7 @@ window.Plot = (function() {
 
             let link = document.createElement('a');
             link.innerHTML = current.name;
-            link.setAttribute('href', '/species/' + Plot.depthToTaxon(current.depth) + '/' + current.name + '/1');
+            link.setAttribute('href', '/species/' + depthToTaxon(current.depth) + '/' + current.name + '/1');
             item.appendChild(link);
 
             tax.appendChild(item);
@@ -558,8 +621,6 @@ window.Plot = (function() {
         table.appendChild(body);
         info.appendChild(table);
 
-
-
         return info;
     }
 
@@ -579,6 +640,7 @@ window.Plot = (function() {
         controls.appendChild(widthTitle);
 
         let widthSelect = document.createElement('select');
+        widthSelect.classList.add('select');
 
         for (let stat of Stat.all()) {
             let option = document.createElement('option');
@@ -604,6 +666,7 @@ window.Plot = (function() {
         controls.appendChild(colorTitle);
 
         let colorSelect = document.createElement('select');
+        colorSelect.classList.add('select');
 
         for (let stat of Stat.all()) {
             let option = document.createElement('option');
@@ -632,15 +695,15 @@ window.Plot = (function() {
         let infoElement = document.getElementById('info');
         let infoChild = null;
 
-        let tree = Plot.Tree.fromJson(json);
+        let tree = Tree.fromJson(json);
 
-        let chart = new Plot.Chart("sunburst", tree);
+        let chart = new Chart("sunburst", tree);
         generateControls(chart);
 
         chart.addEventListener('click', async function(child, event) {
             // If ctrl key is pressed down, or mouse wheel click, open list of species in new tab
             if (event.type === "auxclick" || event.ctrlKey) {
-                window.open('/species/' + Plot.depthToTaxon(child.depth) + '/' + child.name + '/1');
+                window.open('/species/' + depthToTaxon(child.depth) + '/' + child.name + '/1');
                 return;
             }
 
@@ -650,9 +713,9 @@ window.Plot = (function() {
                 }
             } else {
                 // Fetch what we need
-                let req = await fetch('/plotly/' + Plot.depthToTaxon(child.depth) + '/' + child.name);
+                let req = await fetch('/plotly/' + depthToTaxon(child.depth) + '/' + child.name);
                 let resp = await req.json();
-                child.children = Plot.Tree.fromJson(resp, child.depth).children;
+                child.children = Tree.fromJson(resp, child.depth).children;
                 for (let subchild of child.children) {
                     subchild.parent = child;
                 }
@@ -679,4 +742,5 @@ window.Plot = (function() {
     }
 
     return { Tree, Chart, depthToTaxon, main };
-})();
+
+}

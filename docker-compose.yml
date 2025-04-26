@@ -1,20 +1,20 @@
 services:
-  server:
-    image: registry.polymny.studio/cnrs/scraper:0.0.6
-    build:
-      context: .
-      target: server
-    environment:
-      - ROOT_URI=http://localhost:8000
-      - COOKIE_SECRET_KEY=LFE2hXgtKTAUz8gD1ahhjrTm2vHL1p7G7MoUbE+3ESI=
-      - DATA_PATH=/data
-      - JOBS=50
-      - BATCH_SIZE=50
-      - POSTGRES_URI=postgres://scraper:scraper@postgres:5432/scraper
-    ports:
-      - 8000:8000
-    volumes:
-      - ./data/arthropoda:/data
+  # server:
+  #   image: registry.polymny.studio/cnrs/scraper:0.0.6
+  #   build:
+  #     context: .
+  #     target: server
+  #   environment:
+  #     - ROOT_URI=http://localhost:8000
+  #     - COOKIE_SECRET_KEY=LFE2hXgtKTAUz8gD1ahhjrTm2vHL1p7G7MoUbE+3ESI=
+  #     - DATA_PATH=/data
+  #     - JOBS=50
+  #     - BATCH_SIZE=50
+  #     - POSTGRES_URI=postgres://scraper:scraper@postgres:5432/scraper
+  #   ports:
+  #     - 8000:8000
+  #   volumes:
+  #     - ./data/arthropoda:/data
 
   postgres:
     image: postgres:14

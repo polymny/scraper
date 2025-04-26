@@ -2,6 +2,10 @@
 
 {% block extracss %}
 <style>
+#sunburst {
+    display: inline;
+}
+
 .plot-container {
     filter: invert(75%) hue-rotate(180deg);
 }
@@ -10,25 +14,28 @@
     max-height: 40vh;
 }
 
-canvas {
-    width: 80%;
-    height: 80%;
+canvas.scale {
+    height: calc(100vh - 52px);
+}
+
+canvas.main {
+    width: calc(100vh - 52px);
+    height: calc(100vh - 52px);
 }
 </style>
 {% endblock extracss %}
 
 {% block content %}
-<section class="section">
-    <div class="columns">
-        <div class="column is-6">
-            <h1 class="title is-1">Scraper</h1>
+<section class="section p-0 m-0">
+    <div class="columns m-0 p-0">
+        <div class="column m-0 p-0">
             <div id="sunburst"></div>
         </div>
-        <div class="column is-6">
+        <div class="column m-0 p-0">
             <div class="columns">
-                <div class="column is-6 content" id="info">
+                <div class="column content my-5" id="info">
                 </div>
-                <div class="column is-6 content" id="controls">
+                <div class="column content my-5" id="controls">
                 </div>
             </div>
             <div>
@@ -37,19 +44,15 @@ canvas {
             </div>
         </div>
     </div>
-
-    <h2 class="title is-4">Aide</h2>
-    <div class="content">
-        <ul>
-            <li>Ctrl + clic ou clic molette pour ouvrir le taxon dans un nouvel onglet</li>
-        </ul>
-    </div>
 </section>
 {% endblock content %}
 
 {% block extrajs %}
 <script src="/static/plot.js"></script>
 <script>
-    Plot.main();
+    (async function() {
+        const Plot = await initPlot();
+        Plot.main();
+    })();
 </script>
 {% endblock extrajs %}

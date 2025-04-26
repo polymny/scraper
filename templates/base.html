@@ -20,29 +20,26 @@
     </head>
     <body>
         <nav class="navbar has-shadow is-link is-boxed" role="navigation" aria-label="dropdown navigation">
-            <div>
-                <div class="navbar-brand">
-                    <a class="navbar-item" href="/"><strong class="is-size-4">Scraper</strong></a>
+            <div class="navbar-brand">
+                <a class="navbar-item" href="/"><strong class="is-size-4">Scraper</strong></a>
 
-                    <a role="button" class="navbar-burger" aria-label="menu" aria-expanded="false" data-target="navbarBasicExample">
-                        <span aria-hidden="true"></span>
-                        <span aria-hidden="true"></span>
-                        <span aria-hidden="true"></span>
-                        <span aria-hidden="true"></span>
-                    </a>
-                </div>
-                <div id="navbarBasicExample" class="navbar-menu">
-                    <div class="navbar-end">
+                <a role="button" class="navbar-burger" aria-label="menu" aria-expanded="false" data-target="navbarBasicExample">
+                    <span aria-hidden="true"></span>
+                    <span aria-hidden="true"></span>
+                    <span aria-hidden="true"></span>
+                    <span aria-hidden="true"></span>
+                </a>
+            </div>
+            <div id="navbarBasicExample" class="navbar-menu">
+                <div class="navbar-end">
+                    <div class="navbar-item">
+                        <strong>v{{ version }}</strong>
                     </div>
                 </div>
             </div>
         </nav>
         {% block content %}{% endblock content %}
-        <footer class="footer py-3">
-            <div class="content has-text-right">
-                <strong>{{ version }}</strong>
-            </div>
-        </footer>
+
         {% block extrajs %}{% endblock extrajs %}
     </body>
 </html>
