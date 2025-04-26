@@ -285,6 +285,7 @@ async function initPlot() {
             scaleColumn.classList.add('column');
             scaleColumn.classList.add('p-0');
             scaleColumn.classList.add('m-0');
+            scaleColumn.classList.add('is-narrow');
             scaleColumn.appendChild(this.scale);
 
             let mainColumn = document.createElement('div');
@@ -625,10 +626,17 @@ async function initPlot() {
         // Root element
         let info = document.createElement('div');
 
+        let columns = document.createElement('div');
+        columns.classList.add('columns');
+
+        // Tax part
+        let taxColumn = document.createElement('div');
+        taxColumn.classList.add('column');
+
         // Title for taxonomy part of info
         let taxTitle = document.createElement('h3');
         taxTitle.innerHTML = "Taxonomie";
-        info.appendChild(taxTitle);
+        taxColumn.appendChild(taxTitle);
 
         // Hierarchy of taxonomy
         let tax = document.createElement('ul');
@@ -654,12 +662,15 @@ async function initPlot() {
             tax.appendChild(item);
         }
 
-        info.appendChild(tax);
+        taxColumn.appendChild(tax);
 
         // All metadata
+        let tableColumn = document.createElement('div');
+        tableColumn.classList.add('column');
+
         let metadataTitle = document.createElement('h3');
         metadataTitle.innerHTML = 'Metadonnées';
-        info.appendChild(metadataTitle);
+        tableColumn.appendChild(metadataTitle);
 
         let table = document.createElement('table');
         let body  = document.createElement('tbody');
@@ -685,7 +696,12 @@ async function initPlot() {
         }
 
         table.appendChild(body);
-        info.appendChild(table);
+        tableColumn.appendChild(table);
+
+        columns.appendChild(taxColumn);
+        columns.appendChild(tableColumn);
+
+        info.appendChild(columns);
 
         return info;
     }

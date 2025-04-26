@@ -29,19 +29,22 @@ canvas.main {
 </style>
 {% endblock extracss %}
 
+{% block extranavbar %}
+<div class="navbar-item">
+    <div class="navbar-item js-modal-trigger" data-target="options-modal">
+        Options
+    </div>
+</div>
+{% endblock extranavbar %}
+
 {% block content %}
 <section class="section p-0 m-0">
     <div class="columns m-0 p-0">
-        <div class="column m-0 p-0">
+        <div class="column is-7 m-0 p-0">
             <div id="sunburst"></div>
         </div>
-        <div class="column m-0 p-0">
-            <div class="columns">
-                <div class="column content my-5" id="info">
-                </div>
-                <div class="column content my-5" id="controls">
-                </div>
-            </div>
+        <div class="column is-5 m-0 p-0">
+            <div class="content my-5" id="info"></div>
             <div>
                 <h3 id="example-title" class="title is-3" style="display: none;">Exemple</h3>
                 <img class="blur example" id="example"></img>
@@ -49,6 +52,12 @@ canvas.main {
         </div>
     </div>
 </section>
+
+<div id="options-modal" class="modal">
+    <div class="modal-background"></div>
+    <div id="controls" class="modal-content"></div>
+    <button class="modal-close is-large" aria-label="close"></button>
+</div>
 {% endblock content %}
 
 {% block extrajs %}
