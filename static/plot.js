@@ -129,6 +129,20 @@ async function initPlot() {
         }
     }
 
+    function taxonToDepth(taxon) {
+        switch (taxon) {
+            case "reign":   return 0;
+            case "phylum":  return 1;
+            case "class":   return 2;
+            case "order":   return 3;
+            case "family":  return 4;
+            case "genus":   return 5;
+            case "species": return 6;
+            default:
+                throw new Error("taxon does not exist: " + taxon);
+        }
+    }
+
     function interpolateColor(startColor, endColor, value) {
         let startR = parseInt(startColor[1] + startColor[2], 16);
         let startG = parseInt(startColor[3] + startColor[4], 16);
@@ -154,6 +168,20 @@ async function initPlot() {
             this.children = [];
             this.hovering = false;
             this.depth = depth;
+        }
+
+        prettyName() {
+            if (this.name == undefined) {
+                return "";
+            }
+
+            if (this.depth !== 6) {
+                return this.name;
+            }
+
+            let split = this.name.replaceAll('(', '').replaceAll(')', '').split(' ');
+            let authorIndex = split.map((x, index) => index > 0 && x[0] === x[0].toUpperCase()).indexOf(true);
+            return split.slice(0, authorIndex).join(' ');
         }
 
         static fromJson(value) {
@@ -227,6 +255,10 @@ async function initPlot() {
         // Returns a canvas ready color from colorValue
         color(options) {
             let value = this.colorValue(options);
+
+            if (isNaN(value)) {
+                return 'white';
+            }
 
             let startColor = COLOR_BREWER[options.colorTheme][0];
             let endColor = COLOR_BREWER[options.colorTheme][1];
@@ -392,7 +424,7 @@ async function initPlot() {
                         let y = this.center.y + r * Math.sin(theta);
 
                         this.ctx.fillStyle = "black";
-                        let { width } = this.ctx.measureText(child.name);
+                        let { width } = this.ctx.measureText(child.prettyName());
 
                         this.ctx.save();
                         this.ctx.translate(this.center.x, this.center.y);
@@ -407,11 +439,8 @@ async function initPlot() {
                             this.ctx.rotate(Math.PI);
                         }
 
-                        this.ctx.fillText(child.name, -width / 2, 0);
+                        this.ctx.fillText(child.prettyName(), -width / 2, 0);
                         this.ctx.restore();
-
-                        // this.ctx.fillText(child.name, x - width / 2, y);
-
 
                         currentAngle += child.width(this.options) / total;
                     }
@@ -464,7 +493,7 @@ async function initPlot() {
                 let y = this.center.y + r * Math.sin(theta);
 
                 this.ctx.fillStyle = "black";
-                let { width } = this.ctx.measureText(child.name);
+                let { width } = this.ctx.measureText(child.prettyName());
                 this.ctx.save();
                 this.ctx.translate(this.center.x, this.center.y);
 
@@ -478,7 +507,7 @@ async function initPlot() {
                     this.ctx.rotate(Math.PI);
                 }
 
-                this.ctx.fillText(child.name, -width / 2, 0);
+                this.ctx.fillText(child.prettyName(), -width / 2, 0);
                 this.ctx.restore();
 
 
@@ -508,8 +537,8 @@ async function initPlot() {
             this.ctx.fill();
 
             this.ctx.fillStyle = "black";
-            let { width } = this.ctx.measureText(this.currentRoot.name);
-            this.ctx.fillText(this.currentRoot.name, this.center.x - width / 2, this.center.y);
+            let { width } = this.ctx.measureText(this.currentRoot.prettyName());
+            this.ctx.fillText(this.currentRoot.prettyName(), this.center.x - width / 2, this.center.y);
 
             // First level lines
             this.ctx.beginPath();
@@ -798,16 +827,38 @@ async function initPlot() {
     }
 
     async function main() {
-        let json = await fetch('/plotly/reign/Animalia');
-        json = await json.json();
-
         let infoElement = document.getElementById('info');
         let infoChild = null;
 
-        let tree = Tree.fromJson(json);
-
-        let chart = new Chart("sunburst", tree);
+        let chart = new Chart("sunburst");
         generateControls(chart);
+
+        async function loadFromLocation() {
+            let currentPath = window.location.hash.slice(1).split('=');
+            let currentTaxon = null, currentValue = null, currentDepth = null;
+
+            try {
+                currentTaxon = currentPath[0];
+                currentDepth = taxonToDepth(currentTaxon); // will throw if current taxon does not exist
+                currentValue = currentPath[1];
+            } catch {
+                currentTaxon = 'reign';
+                currentValue = 'Animalia';
+                currentDepth = 0;
+            }
+
+            let json = await fetch(`/plotly/${currentTaxon}/${currentValue}`);
+            json = await json.json();
+
+            let tree = Tree.fromJson(json);
+            chart.root = tree;
+            chart.currentRoot = tree;
+            chart.render();
+        }
+
+        window.addEventListener('popstate', async event => {
+            loadFromLocation();
+        });
 
         chart.addEventListener('click', async function(child, event) {
             // If ctrl key is pressed down, or mouse wheel click, open list of species in new tab
@@ -815,20 +866,12 @@ async function initPlot() {
                 window.open('/species/' + depthToTaxon(child.depth) + '/' + child.name + '/1');
                 return;
             }
-
             if (chart.currentRoot === child) {
-                if (child.parent !== null) {
-                    chart.currentRoot = child.parent;
+                if (child.depth > 0) {
+                    window.location = "#" + depthToTaxon(child.depth - 1) + "=" + child.metadata[depthToTaxon(child.depth - 1)];
                 }
             } else {
-                // Fetch what we need
-                let req = await fetch('/plotly/' + depthToTaxon(child.depth) + '/' + child.name);
-                let resp = await req.json();
-                child.children = Tree.fromJson(resp, child.depth).children;
-                for (let subchild of child.children) {
-                    subchild.parent = child;
-                }
-                chart.currentRoot = child;
+                window.location = "#" + depthToTaxon(child.depth) + "=" + child.name;
             }
             chart.render();
         });
@@ -847,7 +890,7 @@ async function initPlot() {
             infoChild = generated;
         });
 
-        chart.render();
+        loadFromLocation();
     }
 
     return { Tree, Chart, depthToTaxon, main };
