@@ -736,11 +736,26 @@ async function initPlot() {
     }
 
     function generateExample(tree) {
+        let loadingAnimation = document.getElementById('loading-animation');
+        loadingAnimation.style.display = "block";
+
         let exampleTitle = document.getElementById('example-title');
         exampleTitle.style.display = "block";
 
         let example = document.getElementById('example');
-        example.setAttribute('src', '/data/medias/' + tree.metadata.example_media_path);
+        example.innerHTML = "";
+
+        let img = document.createElement('img');
+        img.classList.add("blur");
+        img.classList.add("example");
+        img.style.display = "none";
+        img.onload = function() {
+            img.style.display = "block";
+            loadingAnimation.style.display = "none";
+        }
+
+        img.src = '/data/medias/' + tree.metadata.example_media_path;
+        example.appendChild(img);
     }
 
     function generateControls(chart) {
