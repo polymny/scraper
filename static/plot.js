@@ -66,13 +66,13 @@ async function initPlot() {
     }
 
     class Stat {
-        static SPECIES_COUNT = new Stat("species_count");
-        static MEDIAS_COUNT = new Stat("medias_count");
-        static MEDIAS_DOWNLOADED_COUNT = new Stat("medias_downloaded_count");
-        static MEDIAS_CROPPED_COUNT = new Stat("medias_cropped_count");
-        static MEDIAS_DOWNLOADED_OVER_MEDIAS = new Stat("medias_downloaded_over_medias");
-        static MEDIAS_CROPPED_OVER_MEDIAS = new Stat("medias_cropped_over_medias");
-        static MEDIAS_CROPPED_OVER_MEDIAS_DOWNLOADED = new Stat("medias_cropped_over_medias_downloaded");
+        static SPECIES_COUNT = new Stat("species_count", "Espèces", "Nombre total d'espèces dans la catégorie", false);
+        static MEDIAS_COUNT = new Stat("medias_count", "Médias", "Nombre total de médias existants dans la catégorie, incluant possiblement plusieurs médias par occurrence.", false);
+        static MEDIAS_DOWNLOADED_COUNT = new Stat("medias_downloaded_count", "Médias téléchargés", "Nombre total de médias correctement téléchargés lors du scraping.", false);
+        static MEDIAS_CROPPED_COUNT = new Stat("medias_cropped_count", "Médias croppés", "Nombre total de médias correctement croppés par l'intelligence artificielle.", false);
+        static MEDIAS_DOWNLOADED_OVER_MEDIAS = new Stat("medias_downloaded_over_medias", "Médias téléchargés / médias", "Pourcentage de médias téléchargés par rapport au nombre total de médias disponibles, incluant possiblement plusieurs médias par occurrence.", true);
+        static MEDIAS_CROPPED_OVER_MEDIAS = new Stat("medias_cropped_over_medias", "Médias croppés / médias", "Pourcentage de médias téléchargés par rapport au nombre total de médias disponibles, incluant possiblement plusieurs médias par occurrence.", true);
+        static MEDIAS_CROPPED_OVER_MEDIAS_DOWNLOADED = new Stat("medias_cropped_over_medias_downloaded", "Médias croppés / médias téléchargés", "Pourcentage de médias téléchargés par rapport au nombre de médias téléchargés.", true);
 
         static all() {
             return [
@@ -96,8 +96,11 @@ async function initPlot() {
             return null;
         }
 
-        constructor(name) {
+        constructor(name, nameFr, description, isRatio) {
             this.name = name;
+            this.nameFr = nameFr;
+            this.description = description;
+            this.isRatio = isRatio;
         }
 
 
@@ -372,6 +375,27 @@ async function initPlot() {
             this.scaleCtx.rect(1, 1, this.scale.width - 2, this.scale.height - 2);
             this.scaleCtx.strokeStyle = 'white';
             this.scaleCtx.stroke();
+
+            let fontSize = 30;
+            this.scaleCtx.font = fontSize + 'px Arial';
+            let { width } = this.scaleCtx.measureText(this.options.colorStat.nameFr);
+
+            this.scaleCtx.fillStyle = "white";
+
+            this.scaleCtx.save();
+            this.scaleCtx.rotate(-Math.PI / 2);
+            this.scaleCtx.fillText(
+                this.options.colorStat.nameFr,
+                -this.scale.height / 2 - width / 2,
+                fontSize + (this.scale.width - fontSize) / 2
+            );
+            this.scaleCtx.restore();
+
+            width = this.scaleCtx.measureText("0").width;
+            this.scaleCtx.fillText("0", (this.scale.width - width) / 2, this.scale.height - 5);
+
+            width = this.scaleCtx.measureText("1").width;
+            this.scaleCtx.fillText("1", (this.scale.width - width) / 2, fontSize);
         }
 
         addEventListener(type, callback) {
@@ -707,10 +731,18 @@ async function initPlot() {
         for (let key in tree.metadata) {
 
             if (['id', 'reign', 'phylum', 'class', 'order', 'family', 'genus', 'species', 'example_media_path'].indexOf(key) === -1) {
+
+                let stat = Stat.getByName(key);
+                let name = stat === null ? key : stat.nameFr;
+
                 let row = document.createElement('tr');
 
                 let rowHeading = document.createElement('th');
-                rowHeading.innerHTML = key;
+                rowHeading.innerHTML = name;
+
+                if (stat !== null) {
+                    rowHeading.setAttribute('title', stat.description);
+                }
 
                 let rowCell = document.createElement('td');
                 rowCell.classList.add('has-text-right');
@@ -736,6 +768,9 @@ async function initPlot() {
     }
 
     function generateExample(tree) {
+        let errorElement = document.getElementById('error');
+        error.style.display = "none";
+
         let loadingAnimation = document.getElementById('loading-animation');
         loadingAnimation.style.display = "block";
 
@@ -751,6 +786,10 @@ async function initPlot() {
         img.style.display = "none";
         img.onload = function() {
             img.style.display = "block";
+            loadingAnimation.style.display = "none";
+        }
+        img.onerror = function() {
+            errorElement.style.display = "block";
             loadingAnimation.style.display = "none";
         }
 
@@ -794,6 +833,9 @@ async function initPlot() {
 
         let widthSelect = document.createElement('select');
         widthSelect.classList.add('select');
+        widthSelect.classList.add('mb-3');
+
+        let widthInfo = document.createElement('div');
 
         for (let stat of Stat.all()) {
             let option = document.createElement('option');
@@ -801,44 +843,58 @@ async function initPlot() {
 
             if (stat.name === chart.options.widthStat.name) {
                 option.setAttribute('selected', 'selected');
+                widthInfo.innerHTML = stat.description;
             }
 
-            option.innerHTML = stat.name;
+            option.innerHTML = stat.nameFr;
             widthSelect.appendChild(option);
         }
 
         widthSelect.addEventListener('change', event => {
             chart.options.widthStat = event.target.value;
+            widthInfo.innerHTML = chart.options.widthStat.description;
             chart.render();
         });
 
         controls.appendChild(widthSelect);
+        controls.appendChild(widthInfo);
 
         let colorTitle = document.createElement('h3');
         colorTitle.innerHTML = "Couleur des cercles";
         controls.appendChild(colorTitle);
 
+        let colorInfo = document.createElement('div');
+
         let colorSelect = document.createElement('select');
         colorSelect.classList.add('select');
+        colorSelect.classList.add('mb-3');
 
         for (let stat of Stat.all()) {
+            if (!stat.isRatio) {
+                continue;
+            }
+
             let option = document.createElement('option');
             option.setAttribute('value', stat.name);
 
             if (stat.name === chart.options.colorStat.name) {
                 option.setAttribute('selected', 'selected');
+                colorInfo.innerHTML = stat.description;
             }
 
-            option.innerHTML = stat.name;
+            option.innerHTML = stat.nameFr;
             colorSelect.appendChild(option);
         }
 
         colorSelect.addEventListener('change', event => {
             chart.options.colorStat = event.target.value;
+            colorInfo.innerHTML = chart.options.colorStat.description;
+            chart.renderScale();
             chart.render();
         });
 
         controls.appendChild(colorSelect);
+        controls.appendChild(colorInfo);
     }
 
     async function main() {

@@ -2,12 +2,22 @@
 
 {% block content %}
 <section class="section">
-    <h1 class="title is-1">Scraper</h1>
-    <div class="content">
-        <ul>
-            <li><a href="/plotly">Voir le diagramme des espèces</a></li>
-            <li><a href="/species/reign/Animalia/1">Voir toutes les espèces</a></li>
-        </ul>
+    <div class="columns">
+        <div class="column is-4 is-offset-4">
+            <div class="content">
+                <h1 class="has-text-centered">Arthropodes</h1>
+                <p>
+                Dans le cadre du projet <a href="https://terra-forma-web.osug.fr/">Terra Forma</a>, nous développons des outils
+                d'aide à l'identification de la biodiversité hexagonale. Cette page est dédiée à la visualisation des
+                différentes resources nécessaires pour la construction d'une intelligence artificielle permettant la
+                reconnaissance d'arthropodes sur photos.
+                </p>
+                <ul>
+                    <li><a href="/plotly">Voir le diagramme des espèces</a></li>
+                    <li><a href="/species/reign/Animalia/1">Voir toutes les espèces</a></li>
+                </ul>
+            </div>
+        </div>
     </div>
 </section>
 {% endblock content %}

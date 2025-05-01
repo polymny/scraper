@@ -19,12 +19,12 @@ canvas {
 }
 
 canvas.scale {
-    height: calc(100vh - 52px);
+    height: calc(100vh - 56px);
 }
 
 canvas.main {
-    width: calc(100vh - 52px);
-    height: calc(100vh - 52px);
+    width: calc(100vh - 56px);
+    height: calc(100vh - 56px);
 }
 </style>
 {% endblock extracss %}
@@ -51,6 +51,14 @@ canvas.main {
                 <h3 id="example-title" class="title is-3" style="display: none;">Exemple</h3>
                 <button id="loading-animation" class="button is-loading is-ghost" style="display: none"></button>
                 <div id="example"></div>
+                <article id="error" class="message is-danger" style="display: none;">
+                    <div class="message-header">
+                        <p>Erreur</p>
+                    </div>
+                    <div class="message-body">
+                        Impossible de charger l'image.
+                    </div>
+                </article>
             </div>
         </div>
     </div>
