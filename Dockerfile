@@ -50,7 +50,7 @@ COPY --from=build /root/.cargo/bin/template-config /bin
 
 COPY static static
 COPY templates templates
-COPY migrations migrations
+COPY --from=build /app/migrations migrations
 COPY Rocket.tpl.toml .
 
 # Generate Rocket.toml and start server
