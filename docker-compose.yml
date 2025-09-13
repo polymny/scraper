@@ -1,6 +1,5 @@
 services:
   server:
-    # image: registry.polymny.studio/cnrs/scraper:0.0.9
     build:
       context: .
       target: server
@@ -11,7 +10,7 @@ services:
       - COOKIE_SECRET_KEY=pXSSCKA8bbH5maDK0IhkeZv4qcCg95JLn/xHzBXE5hg=
       - DATA_PATH=/data
       - JOBS=50
-      - BATCH_SIZE=200
+      - BATCH_SIZE=50
       - POSTGRES_URI=postgres://scraper:scraper@postgres:5432/scraper
     ports:
       - 8000:8000

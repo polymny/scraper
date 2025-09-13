@@ -641,7 +641,10 @@ pub async fn main() -> Result<()> {
     Log::init(logfile, module).expect("Failed to init logging system");
 
     match args[1].as_ref() {
-        "reset-db" => ergol_cli::reset(".").await.expect("Failed to reset db"),
+        "reset-db" => {
+            ergol_cli::reset(".").await.expect("Failed to reset db");
+            info!("Database reinitialized");
+        }
 
         "scrap" => {
             if args.len() < 3 {
