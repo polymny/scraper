@@ -17,6 +17,9 @@ services:
     volumes:
       - ./data/scraped:/data
       - ./.cache:/root/.cache/gbif-scraper
+    depends_on:
+      postgres:
+        condition: service_healthy
 
   postgres:
     image: postgres:14
