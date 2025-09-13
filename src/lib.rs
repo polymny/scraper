@@ -28,17 +28,17 @@ use tokio::sync::mpsc::unbounded_channel;
 use tokio::sync::{OnceCell, Semaphore};
 use tokio::task::JoinHandle;
 
+use rocket::State;
 use rocket::http::Status;
 use rocket::request::{FromRequest, Outcome, Request};
 use rocket::response::{self, Responder};
-use rocket::State;
 
+use ergol::Pool;
 use ergol::deadpool::managed::Object;
 use ergol::prelude::*;
 use ergol::tokio_postgres::Error as TpError;
-use ergol::Pool;
 
-use crate::config::{Config, BLACKLISTED_DATASET};
+use crate::config::{BLACKLISTED_DATASET, Config};
 use crate::cropper::Cropper;
 use crate::db::{Media, Occurrence, Species, SpeciesMetadata};
 use crate::logger::Log;
@@ -194,7 +194,7 @@ impl<'r> FromRequest<'r> for Db {
         let pool = match request.guard::<&State<Pool>>().await {
             Outcome::Success(pool) => pool,
             Outcome::Error(_) => {
-                return Outcome::Error((Status::InternalServerError, Error::InternalServerError))
+                return Outcome::Error((Status::InternalServerError, Error::InternalServerError));
             }
             Outcome::Forward(s) => return Outcome::Forward(s),
         };
@@ -202,7 +202,7 @@ impl<'r> FromRequest<'r> for Db {
         let db = match pool.get().await {
             Ok(db) => db,
             Err(_) => {
-                return Outcome::Error((Status::InternalServerError, Error::InternalServerError))
+                return Outcome::Error((Status::InternalServerError, Error::InternalServerError));
             }
         };
 
@@ -233,6 +233,12 @@ pub async fn scrap(
         "Failed to create species directory \"{}\"",
         species_dir
     ));
+
+    // Ensure taxref is downloaded
+    let taxref_path = taxref::path().expect("Couldn't get taxref path");
+    if !taxref_path.exists() {
+        taxref::download().await?;
+    }
 
     // Find species matching query
     let species = Entry::from_taxon(taxon, query)?;

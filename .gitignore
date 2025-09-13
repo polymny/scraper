@@ -1,3 +1,4 @@
 /target
 data
 Rocket.toml
+.cache

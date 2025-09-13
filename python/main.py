@@ -184,7 +184,7 @@ def main(tmp_root):
 
                         response = FileCropSuccess(request.id, request.path, files[0], box, confidence)
                     else:
-                        response  = FileCropFailure(request.id, request.path)
+                        response = FileCropFailure(request.id, request.path)
 
                     batch_response.files.append(response)
 
