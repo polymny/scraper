@@ -34,7 +34,7 @@ FROM nvidia/cuda:12.1.1-runtime-ubuntu22.04 AS server
 WORKDIR /app
 
 # Setup python
-RUN apt-get update && apt-get install -y libssl3 python3 python3-pip python-is-python3 libgl1-mesa-glx libglib2.0-0 && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y libssl3 python3 python3-pip python-is-python3 postgresql-client libgl1-mesa-glx libglib2.0-0 && rm -rf /var/lib/apt/lists/*
 WORKDIR /app/python
 COPY python/requirements.txt requirements.txt
 COPY python/requirements_cuda.txt requirements_cuda.txt
@@ -52,6 +52,7 @@ COPY static static
 COPY templates templates
 COPY --from=build /app/migrations migrations
 COPY Rocket.tpl.toml .
+COPY ./generate-examples.sh /usr/local/bin/generate-examples
 
 # Generate Rocket.toml and start server
 CMD template-config ./Rocket.tpl.toml > ./Rocket.toml && scraper serve

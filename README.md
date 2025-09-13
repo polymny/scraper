@@ -2,21 +2,25 @@
 
 ### Usage
 
-Ce scraper est prévu pour tourner dans docker, vous pouvez cloner le repository, et démarrer le docker-compose avec :
 ```sh
-git clone https://github.com/polymny/scraper
-cd scraper
+# Récupération des sources
+git clone https://github.com/polymny/scraper && cd scraper
+
+# Création et démarrage de l'image docker de l'appli et de la base de données
 docker-compose up -d --build
-```
 
-Cela va construire l'image docker puis démarrer le service et la base de données Postgres.
-
-Il faut ensuite initialiser la base de données :
-```sh
+# Initialisation de la base de données
 docker compose exec server scraper reset-db
+
+# Démarrage du scraping sur la famille Apidae
+docker compose exec server scraper scrap family=Apidae
+
+# Calcul des médias d'exemple
+docker compose exec server generate-examples
+
+# Génération du cache pour plotly
+docker compose exec server scraper regen-cache
 ```
 
-Une fois la base de données initialisée, on peut lancer une session de scraping ainsi :
-```sh
-docker compose exec server scraper scrap family=Apidae
-```
+Une fois tout ceci effectué, vous pouvez aller sur [localhost:8000](http://localhost:8000) pour naviguer dans la base de
+données scrapée.

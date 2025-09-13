@@ -6,7 +6,7 @@ use std::result::Result as StdResult;
 
 use serde::Serialize;
 
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 
 use ergol::prelude::*;
 use ergol::tokio_postgres::types::ToSql;
@@ -18,7 +18,7 @@ use rocket::fs::NamedFile;
 use rocket::response::content::RawHtml;
 use rocket::{self, Ignite, Rocket, State as S};
 
-use crate::config::{Config, BLACKLISTED_DATASET};
+use crate::config::{BLACKLISTED_DATASET, Config};
 use crate::db::Media;
 use crate::db::{Species, SpeciesMetadata};
 use crate::logger::LogFairing;
@@ -152,6 +152,8 @@ pub async fn species_list(
         taxon_key
     );
 
+    debug!("{}", sql);
+
     let offset = (page - 1) as i64 * LIMIT;
     let arg2: &[&(dyn ToSql + Sync)] = &[&BLACKLISTED_DATASET, &taxon_value, &offset, &LIMIT];
 
@@ -196,6 +198,8 @@ pub async fn species_list(
             })
         })
         .collect::<Vec<_>>();
+
+    debug!("{:?}", species);
 
     let breadcrumb = breadcrumb.unwrap_or(vec![]);
 
