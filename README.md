@@ -18,9 +18,19 @@ docker compose exec server scraper scrap family=Apidae
 # Calcul des médias d'exemple
 docker compose exec server generate-examples
 
+# Génération des fichiers CSV
+docker compose exec server generate-csv
+
 # Génération du cache pour plotly
 docker compose exec server scraper regen-cache
 ```
 
 Une fois tout ceci effectué, vous pouvez aller sur [localhost:8000](http://localhost:8000) pour naviguer dans la base de
 données scrapée.
+
+Quand vous avez fini d'utiliser le scraper, vous pouvez lancer la commande suivante pour éteindre le serveur la base de
+données :
+
+```sh
+docker compose down
+```

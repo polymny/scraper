@@ -53,6 +53,7 @@ COPY templates templates
 COPY --from=build /app/migrations migrations
 COPY Rocket.tpl.toml .
 COPY ./generate-examples.sh /usr/local/bin/generate-examples
+COPY ./generate-csv.sh /usr/local/bin/generate-csv
 
 # Generate Rocket.toml and start server
 CMD template-config ./Rocket.tpl.toml > ./Rocket.toml && scraper serve
