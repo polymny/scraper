@@ -12,6 +12,10 @@ services:
       - JOBS=50
       - BATCH_SIZE=50
       - POSTGRES_URI=postgres://scraper:scraper@postgres:5432/scraper
+      - PGPASSWORD=scraper
+      - PGHOST=postgres
+      - PGDATABASE=scraper
+      - PGUSER=scraper
     ports:
       - 8000:8000
     volumes:
