@@ -3,9 +3,7 @@ services:
     build:
       context: .
       target: server
-    runtime: nvidia
     environment:
-      - NVIDIA_VISIBLE_DEVICES=all
       - ROOT_URI=http://localhost:8000
       - COOKIE_SECRET_KEY=pXSSCKA8bbH5maDK0IhkeZv4qcCg95JLn/xHzBXE5hg=
       - DATA_PATH=/data

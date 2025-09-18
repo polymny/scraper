@@ -2,10 +2,19 @@
 
 ### Usage
 
-```sh
-# Récupération des sources
-git clone https://github.com/polymny/scraper && cd scraper
 
+##### Récupération des sources
+```sh
+git clone https://github.com/polymny/scraper && cd scraper
+```
+
+##### Activation du support pour GPU Nvidia (pour cropping)
+```sh
+cp docker-compose.nvidia.yml docker-compose.override.yml
+```
+
+##### Démarrage d'un scraping
+```sh
 # Création et démarrage de l'image docker de l'appli et de la base de données
 docker-compose up -d --build
 

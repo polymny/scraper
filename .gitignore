@@ -2,3 +2,4 @@
 data
 Rocket.toml
 .cache
+docker-compose.override.yml

@@ -1,0 +1,5 @@
+services:
+  server:
+    runtime: nvidia
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=all
