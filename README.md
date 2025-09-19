@@ -1,19 +1,27 @@
 # Scraping
 
-### Usage
+## Prérequis
 
+Pour lancer l'application avec Docker, vous devez avoir installé docker :
+  - [Installer docker sous Linux](https://docs.docker.com/engine/install/)
+  - [Installer docker desktop pour Windows et macOS](https://docs.docker.com/desktop/)
 
-##### Récupération des sources
+## Usage
+
+### Récupération des sources
 ```sh
 git clone https://github.com/polymny/scraper && cd scraper
 ```
 
-##### Activation du support pour GPU Nvidia (pour cropping)
+### Activation du support pour GPU Nvidia (pour cropping)
+
+Ne lancer cette ligne que si vous avez un GPU Nvidia :
 ```sh
 cp docker-compose.nvidia.yml docker-compose.override.yml
 ```
 
-##### Démarrage d'un scraping
+### Démarrage d'un scraping
+
 ```sh
 # Création et démarrage de l'image docker de l'appli et de la base de données
 docker-compose up -d --build
@@ -22,7 +30,7 @@ docker-compose up -d --build
 docker compose exec server scraper reset-db
 
 # Démarrage du scraping sur la famille Apidae
-docker compose exec server scraper scrap family=Apidae
+docker compose exec server scraper scrap genus=Andrena
 
 # Calcul des médias d'exemple
 docker compose exec server generate-examples

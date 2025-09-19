@@ -83,31 +83,56 @@
     <div class="fixed-grid has-8-cols">
         <div class="grid">
         {% for media in medias %}
-            <a href="/media/{{ media.path | replace(from="_", to="/") | split(pat=".") | slice(end=-1) | join(sep=".") | safe }}" class="cell {% if media.x %}cell-cropped{% else %}cell-not-cropped{% endif %}">
-                <div class="has-text-centered">
-                    <canvas
-                        width=0
-                        height=0
-                        class="blur canvas"
-                        data-src="/data/medias/{{ media.path | safe }}"
-                        {% if media.x %}data-cropped="true"{% else %}data-cropped="false"{% endif %}
-                        {% if media.x %}data-x="{{ media.x }}"{% endif %}
-                        {% if media.y %}data-y="{{ media.y }}"{% endif %}
-                        {% if media.width %}data-width="{{ media.width }}"{% endif %}
-                        {% if media.height %}data-height="{{ media.height }}"{% endif %}
-                    >
-                    </canvas>
-                    {% if media.confidence %}
-                        {% if media.confidence > 0.5 %}
-                            <div class="has-text-success">
+            <div class="cell {% if media.manual_x %}cell-cropped{% elif media.x %}cell-cropped{% else %}cell-not-cropped{% endif %}">
+                <a href="/crop/{{ media.path | replace(from="_", to="/") | split(pat=".") | slice(end=-1) | join(sep=".") | safe }}">
+                    <span class="icon">
+                        <img src="/static/icons/crop.svg">
+                    </span>
+                </a>
+                <a href="/media/{{ media.path | replace(from="_", to="/") | split(pat=".") | slice(end=-1) | join(sep=".") | safe }}">
+                    <div class="has-text-centered">
+
+                        <canvas
+                            width=0
+                            height=0
+                            class="blur canvas"
+                            data-src="/data/medias/{{ media.path | safe }}"
+                            {% if media.manual_x %}
+                                data-cropped="true" %}
+                            {% elif media.x %}
+                                data-cropped="true"
+                            {% else %}
+                                data-cropped="false"
+                            {% endif %}
+                            {% if media.manual_x %}
+                                data-x="{{ media.manual_x }}"
+                                data-y="{{ media.manual_y }}"
+                                data-width="{{ media.manual_width }}"
+                                data-height="{{ media.manual_height }}"
+                            {% elif media.x %}
+                                data-x="{{ media.x }}"
+                                data-y="{{ media.y }}"
+                                data-width="{{ media.width }}"
+                                data-height="{{ media.height }}"
+                            {% endif %}
+                        >
+                        </canvas>
+                        {% if media.manual_x %}
+                            <div class="has-text-success">Crop manuel</div>
                         {% else %}
-                            <div class="has-text-danger">
+                            {% if media.confidence %}
+                                {% if media.confidence > 0.5 %}
+                                    <div class="has-text-success">
+                                {% else %}
+                                    <div class="has-text-danger">
+                                {% endif %}
+                                        {{ media.confidence | round(precision=3)}}
+                                    </div>
+                            {% endif %}
                         {% endif %}
-                                {{ media.confidence | round(precision=3)}}
-                            </div>
-                    {% endif %}
+                    </div>
+                </a>
                 </div>
-            </a>
         {% endfor %}
         </div>
     </div>

@@ -4,7 +4,7 @@ use std::path::{Path, PathBuf};
 use std::process::exit;
 use std::result::Result as StdResult;
 
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 use serde_json::{Value, json};
 
@@ -16,6 +16,7 @@ use tera::{Context, Tera};
 use rocket::fairing::AdHoc;
 use rocket::fs::NamedFile;
 use rocket::response::content::RawHtml;
+use rocket::serde::json::Json;
 use rocket::{self, Ignite, Rocket, State as S};
 
 use crate::config::{BLACKLISTED_DATASET, Config};
@@ -152,8 +153,6 @@ pub async fn species_list(
         taxon_key
     );
 
-    debug!("{}", sql);
-
     let offset = (page - 1) as i64 * LIMIT;
     let arg2: &[&(dyn ToSql + Sync)] = &[&BLACKLISTED_DATASET, &taxon_value, &offset, &LIMIT];
 
@@ -198,8 +197,6 @@ pub async fn species_list(
             })
         })
         .collect::<Vec<_>>();
-
-    debug!("{:?}", species);
 
     let breadcrumb = breadcrumb.unwrap_or(vec![]);
 
@@ -422,6 +419,62 @@ pub async fn media(
     )
 }
 
+/// Route for manually cropping a media.
+#[get("/crop/<species_key>/<occurrence_key>/<media_index>")]
+pub async fn manual_crop(
+    species_key: i64,
+    occurrence_key: i64,
+    media_index: i32,
+    tera: &S<Tera>,
+    db: Db,
+) -> Result<Html> {
+    let species = Species::get_by_species_key(species_key, &db)
+        .await?
+        .unwrap();
+
+    let media = Media::get_by_id(media_index, &db).await?.unwrap();
+
+    tera.render_json(
+        "crop.html",
+        json!({
+            "species_pretty_name": pretty_name(&species.valid_name),
+            "species_pretty_finder": pretty_finder(&species.valid_name),
+            "species_key": species_key,
+            "occurrence_key": occurrence_key,
+            "media_id": format!("{:04}", media.id),
+            "media": media,
+        }),
+    )
+}
+
+/// A type for receiving bound box from users.
+#[derive(Deserialize)]
+pub struct Bbox {
+    /// The x coordinate of the bounding box, between 0 and 1.
+    pub x: f64,
+
+    /// The y coordinate of the bounding box, between 0 and 1.
+    pub y: f64,
+
+    /// The width of the bounding box, between 0 and 1 - x.
+    pub width: f64,
+
+    /// The height of the bounding box, between 0 and 1 - y.
+    pub height: f64,
+}
+
+/// Route for manually cropping a media.
+#[post("/crop/<media_index>", format = "json", data = "<data>")]
+pub async fn manual_crop_post(media_index: i32, data: Json<Bbox>, db: Db) -> Result<()> {
+    let mut media = Media::get_by_id(media_index, &db).await?.unwrap();
+    media.manual_x = Some(data.x);
+    media.manual_y = Some(data.y);
+    media.manual_width = Some(data.width);
+    media.manual_height = Some(data.height);
+    media.save(&db).await?;
+    Ok(())
+}
+
 /// Route for static files.
 #[get("/static/<file..>")]
 async fn static_files(file: PathBuf) -> Option<NamedFile> {
@@ -468,6 +521,8 @@ pub async fn serve() -> StdResult<Rocket<Ignite>, rocket::Error> {
                 plotly,
                 dynamic_plotly,
                 media,
+                manual_crop,
+                manual_crop_post,
                 static_files,
                 data_files,
             ],

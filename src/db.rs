@@ -7,7 +7,7 @@ use std::time::Duration;
 
 use serde::Serialize;
 
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 
 use tokio::time::sleep;
 
@@ -23,7 +23,7 @@ use reqwest::Client;
 use infer::MatcherType;
 
 use crate::config::Storage;
-use crate::gbif::{search_occurrences, search_species, OccurrencesResponse, MAX_LIMIT_OCCURRENCES};
+use crate::gbif::{MAX_LIMIT_OCCURRENCES, OccurrencesResponse, search_occurrences, search_species};
 use crate::taxref::Entry;
 use crate::utils::{pretty_finder, pretty_name};
 use crate::{Db, Error, Result};
@@ -377,6 +377,18 @@ pub struct Media {
     /// Confidence of the cropping.
     pub confidence: Option<f64>,
 
+    /// x coordinate of the manual bounding box.
+    pub manual_x: Option<f64>,
+
+    /// y coordinate of the manual bounding box.
+    pub manual_y: Option<f64>,
+
+    /// Width of the manual bounding box.
+    pub manual_width: Option<f64>,
+
+    /// Height of the manual bounding box.
+    pub manual_height: Option<f64>,
+
     /// Occurrence that references this media.
     #[many_to_one(medias)]
     #[serde(skip)]
@@ -392,6 +404,10 @@ impl Media {
             None,
             false,
             false,
+            None,
+            None,
+            None,
+            None,
             None,
             None,
             None,

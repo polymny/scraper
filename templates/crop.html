@@ -1,0 +1,156 @@
+{% extends "base.html" %}
+
+{% block extracss %}
+<style>
+    .cell {
+        border: solid;
+        border-width: 1px;
+        border-radius: 5px;
+        padding: 0.5em;
+    }
+
+</style>
+{% endblock extracss %}
+
+{% block content %}
+<section class="section">
+    <h2 class="title is-4 is-italic">
+        {{ species_pretty_name }}
+    </h2>
+    <h3 class="title is-5">
+        {{ species_pretty_finder }}
+    </h3>
+</section>
+
+<section class="section">
+    <div class="columns">
+        <div id="column" class="column is-4 is-offset-4">
+            <div class="has-text-centered">
+                <canvas
+                    id="canvas"
+                    width=0
+                    height=0
+                    class="blur canvas"
+                    data-src="/data/medias/{{ media.path | safe }}"
+                    data-id="{{ media.id }}"
+                >
+                </canvas>
+            </div>
+            <div class="has-text-centered">
+                <button class="button is-link is-outlined" id="reinit">Refaire le crop</button>
+                <button class="button is-link" id="validate" style="visibility: hidden;">Valider le crop</button>
+            </div>
+        </div>
+    </div>
+</section>
+{% endblock content %}
+
+{% block extrajs %}
+<script>
+    async function loadImage(src) {
+        return new Promise((resolve, reject) => {
+            let img = new Image()
+            img.onload = () => resolve(img)
+            img.onerror = reject
+            img.src = src
+        })
+    }
+
+    class Cropper {
+        constructor(id) {
+            this.reinitButton = document.getElementById('reinit');
+            this.validateButton = document.getElementById('validate');
+            this.canvas = document.getElementById('canvas');
+            this.ctx = canvas.getContext('2d');
+            this.src = this.canvas.getAttribute('data-src');
+            this.mediaId = this.canvas.getAttribute('data-id');
+
+            // 0 means setting x
+            // 1 means setting y
+            // 2 means setting width
+            // 3 means setting height
+            // 4 means we're done
+            this.step = 0;
+            this.box = {x: 0, y: 0, width: 1, height: 1};
+
+            this.reinitButton.addEventListener('click', () => this.reinit());
+            this.validateButton.addEventListener('click', () => this.validate());
+        }
+
+        async init() {
+            this.img = await loadImage(this.src);
+
+            let width = this.canvas.parentElement.clientWidth;
+            this.canvas.width = width;
+            this.canvas.height = width * this.img.height / this.img.width;
+
+            canvas.addEventListener('mousemove', event => {
+                switch (this.step) {
+                    case 0: this.box.x = event.offsetX / canvas.width; break;
+                    case 1: this.box.y = event.offsetY / canvas.height; break;
+                    case 2: this.box.width = event.offsetX / canvas.width - this.box.x; break;
+                    case 3: this.box.height = event.offsetY / canvas.height - this.box.y; break;
+                }
+
+                this.render();
+            });
+
+            canvas.addEventListener('pointerdown', () => {
+                this.step++;
+
+                if (this.step === 4) {
+                    this.markDone();
+                }
+            });
+
+            this.render();
+        }
+
+        render() {
+            // Drawing the image clears all overlays
+            this.ctx.drawImage(this.img, 0, 0, this.img.width, this.img.height, 0, 0, this.canvas.width, this.canvas.height);
+            this.ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
+            this.ctx.fillRect(
+                this.box.x * this.canvas.width,
+                this.box.y * this.canvas.height,
+                this.box.width * this.canvas.width,
+                this.box.height * this.canvas.height,
+            );
+        }
+
+        markDone() {
+            this.validateButton.style.visibility = "visible";
+        }
+
+        reinit() {
+            this.validateButton.style.visibility = "hidden";
+            this.step = 0;
+            this.box = {x: 0, y: 0, width: 1, height: 1};
+            this.render();
+        }
+
+        validate() {
+            let xhr = new XMLHttpRequest();
+            xhr.open("POST", '/crop/' + this.mediaId);
+            xhr.setRequestHeader("Content-Type", "application/json;charset=UTF-8");
+
+            xhr.onreadystatechange = () => {
+                if (xhr.readyState === 4) {
+                    window.location.href = window.location.href.replace('crop', 'media');
+                }
+            };
+
+            let pixelBox = {
+                x: (this.box.x + this.box.width / 2) * this.img.width,
+                y: (this.box.y + this.box.height / 2) * this.img.height,
+                width: this.box.width * this.img.width,
+                height: this.box.height * this.img.height,
+            };
+            xhr.send(JSON.stringify(pixelBox));
+        }
+    }
+
+    let cropper = new Cropper('canvas');
+    cropper.init();
+</script>
+{% endblock extrajs %}

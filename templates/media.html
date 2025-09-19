@@ -32,11 +32,21 @@
                     height=0
                     class="blur canvas"
                     data-src="/data/medias/{{ media.path | safe }}"
-                    {% if media.x %}data-cropped="true"{% else %}data-cropped="false"{% endif %}
-                    {% if media.x %}data-x="{{ media.x }}"{% endif %}
-                    {% if media.y %}data-y="{{ media.y }}"{% endif %}
-                    {% if media.width %}data-width="{{ media.width }}"{% endif %}
-                    {% if media.height %}data-height="{{ media.height }}"{% endif %}
+                    {% if media.manual_x %}
+                        data-cropped="true"
+                        data-x="{{ media.manual_x }}"
+                        data-y="{{ media.manual_y }}"
+                        data-width="{{ media.manual_width }}"
+                        data-height="{{ media.manual_height }}"
+                    {% elif media.x %}
+                        data-cropped="true"
+                        data-x="{{ media.x }}"
+                        data-y="{{ media.y }}"
+                        data-width="{{ media.width }}"
+                        data-height="{{ media.width }}"
+                    {% else %}
+                        data-cropped="false"
+                    {% endif %}
                 >
                 </canvas>
             </div>
