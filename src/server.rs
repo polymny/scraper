@@ -68,9 +68,25 @@ pub async fn species(
     db: Db,
 ) -> Result<Html> {
     if let Taxon::Species = taxon_key {
-        species_by_valid_name(taxon_value, page, tera, db).await
+        species_by_valid_name(taxon_value, false, page, tera, db).await
     } else {
-        species_list(taxon_key, taxon_value, page, tera, db).await
+        species_list(taxon_key, taxon_value, false, page, tera, db).await
+    }
+}
+
+/// List the species where there are uncropped medias.
+#[get("/uncropped-species/<taxon_key>/<taxon_value>/<page>")]
+pub async fn uncropped_species(
+    taxon_key: Taxon,
+    taxon_value: &str,
+    page: u32,
+    tera: &S<Tera>,
+    db: Db,
+) -> Result<Html> {
+    if let Taxon::Species = taxon_key {
+        species_by_valid_name(taxon_value, true, page, tera, db).await
+    } else {
+        species_list(taxon_key, taxon_value, true, page, tera, db).await
     }
 }
 
@@ -78,6 +94,7 @@ pub async fn species(
 pub async fn species_list(
     taxon: Taxon,
     taxon_value: &str,
+    uncropped_only: bool,
     page: u32,
     tera: &S<Tera>,
     db: Db,
@@ -231,13 +248,15 @@ pub async fn species_list(
 /// Route for visualizing medias for a certain species.
 pub async fn species_by_valid_name(
     valid_name: &str,
+    only_uncropped: bool,
     page: u32,
     tera: &S<Tera>,
     db: Db,
 ) -> Result<Html> {
     let species = Species::get_by_valid_name(valid_name, &db).await?.unwrap();
 
-    let sql = r#"
+    let sql = format!(
+        r#"
         SELECT
             medias.*
         FROM
@@ -249,15 +268,21 @@ pub async fn species_by_valid_name(
             occurrences.species = speciess.id AND
             medias.occurrence = occurrences.id AND
             occurrences.dataset_key != $2 AND
-            200 <= medias.status_code AND medias.status_code < 400
+            200 <= medias.status_code AND medias.status_code < 400 {}
         ORDER BY
             medias.id
         ;
-    "#;
+    "#,
+        if only_uncropped {
+            " AND medias.x IS NULL AND medias.manual_x IS NULL"
+        } else {
+            ""
+        }
+    );
 
     let medias = db
         .client()
-        .query(sql, &[&valid_name, &BLACKLISTED_DATASET])
+        .query(&sql, &[&valid_name, &BLACKLISTED_DATASET])
         .await?;
     let medias_len = medias.len();
     let offset = (page - 1) as i64 * LIMIT;
@@ -518,6 +543,7 @@ pub async fn serve() -> StdResult<Rocket<Ignite>, rocket::Error> {
             routes![
                 index,
                 species,
+                uncropped_species,
                 plotly,
                 dynamic_plotly,
                 media,

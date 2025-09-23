@@ -15,6 +15,7 @@ RUN apt-get update && \
 
 
 RUN cargo install --git https://github.com/polymny/template-config
+RUN cargo install ergol_cli
 
 # Build rust dependencies
 COPY Cargo.toml .
@@ -47,6 +48,7 @@ COPY python/main.py main.py
 WORKDIR /app
 COPY --from=build /app/target/release/scraper /bin
 COPY --from=build /root/.cargo/bin/template-config /bin
+COPY --from=build /root/.cargo/bin/ergol /bin
 
 COPY static static
 COPY templates templates
