@@ -19,6 +19,8 @@ use rocket::response::content::RawHtml;
 use rocket::serde::json::Json;
 use rocket::{self, Ignite, Rocket, State as S};
 
+use image::{DynamicImage, ImageReader};
+
 use crate::config::{BLACKLISTED_DATASET, Config};
 use crate::db::Media;
 use crate::db::{Species, SpeciesMetadata};
@@ -258,6 +260,41 @@ pub async fn species_by_valid_name(
     let sql = format!(
         r#"
         SELECT
+            COUNT(medias.id),
+            SUM(CASE WHEN medias.x IS NOT NULL OR medias.manual_x IS NOT NULL THEN 1 ELSE 0 END)
+        FROM
+            speciess,
+            occurrences,
+            medias
+        WHERE
+            speciess.valid_name = $1 AND
+            occurrences.species = speciess.id AND
+            medias.occurrence = occurrences.id AND
+            occurrences.dataset_key != $2 AND
+            200 <= medias.status_code AND medias.status_code < 400 {}
+        GROUP BY
+            medias.id, medias.x, medias.manual_x
+        ORDER BY
+            medias.id
+        ;
+    "#,
+        if only_uncropped {
+            " AND medias.x IS NULL AND medias.manual_x IS NULL"
+        } else {
+            ""
+        }
+    );
+
+    let arg: &[&(dyn ToSql + Sync)] = &[&valid_name, &BLACKLISTED_DATASET];
+    let query = db.client().query(&sql, &arg).await?;
+    let mut query_iter = query.into_iter();
+    let medias_len = query_iter.next().unwrap().get::<usize, i64>(0);
+    let medias_cropped_len = query_iter.next().unwrap().get::<usize, i64>(0);
+    let offset = (page - 1) as i64 * LIMIT;
+
+    let sql = format!(
+        r#"
+        SELECT
             medias.*
         FROM
             speciess,
@@ -271,6 +308,10 @@ pub async fn species_by_valid_name(
             200 <= medias.status_code AND medias.status_code < 400 {}
         ORDER BY
             medias.id
+        OFFSET
+            $3
+        LIMIT
+            $4
         ;
     "#,
         if only_uncropped {
@@ -282,13 +323,18 @@ pub async fn species_by_valid_name(
 
     let medias = db
         .client()
-        .query(&sql, &[&valid_name, &BLACKLISTED_DATASET])
+        .query(&sql, &[&valid_name, &BLACKLISTED_DATASET, &offset, &LIMIT])
         .await?;
-    let medias_len = medias.len();
-    let offset = (page - 1) as i64 * LIMIT;
+
     let medias = medias.iter().map(Media::from_row).collect::<Vec<_>>();
-    let medias_cropped_len = medias.iter().filter(|x| x.x.is_some()).count();
-    let max_page = (medias.len() / LIMIT as usize) + 1;
+    let mut medias_with_occurrences = vec![];
+
+    for media in medias {
+        let occurrence = media.occurrence(&db).await?;
+        medias_with_occurrences.push((media, occurrence));
+    }
+
+    let max_page = (medias_len as usize / LIMIT as usize) + 1;
 
     tera.render_json(
         "species-key.html",
@@ -296,7 +342,7 @@ pub async fn species_by_valid_name(
             "species": species.to_json(&db).await?,
             "medias_len": medias_len,
             "medias_cropped_len": medias_cropped_len,
-            "medias": medias[offset as usize .. std::cmp::min((offset + LIMIT) as usize, medias.len())],
+            "medias_with_occurrences": medias_with_occurrences,
             "current_page": page,
             "max_page": max_page,
             "offset": offset,
@@ -490,13 +536,46 @@ pub struct Bbox {
 
 /// Route for manually cropping a media.
 #[post("/crop/<media_index>", format = "json", data = "<data>")]
-pub async fn manual_crop_post(media_index: i32, data: Json<Bbox>, db: Db) -> Result<()> {
+pub async fn manual_crop_post(
+    media_index: i32,
+    data: Json<Bbox>,
+    config: &S<Config>,
+    db: Db,
+) -> Result<()> {
     let mut media = Media::get_by_id(media_index, &db).await?.unwrap();
+
+    // Save crop in cropped medias
+    let input_path = config
+        .storage
+        .medias_root()
+        .join(media.path.as_ref().unwrap());
+
+    let img = ImageReader::open(input_path).unwrap().decode().unwrap();
+    let img = image::imageops::crop_imm(
+        &img,
+        data.x as u32 - (data.width / 2.0) as u32,
+        data.y as u32 - (data.height / 2.0) as u32,
+        data.width as u32,
+        data.height as u32,
+    )
+    .to_image();
+    let img: DynamicImage = img.into();
+    let img = img.to_rgb8();
+
+    let output_path = config
+        .storage
+        .cropped_root()
+        .join(media.path.as_ref().unwrap());
+
+    img.save(output_path).unwrap();
+
+    // Save crop in db
     media.manual_x = Some(data.x);
     media.manual_y = Some(data.y);
     media.manual_width = Some(data.width);
     media.manual_height = Some(data.height);
     media.save(&db).await?;
+
     Ok(())
 }
 

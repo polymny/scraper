@@ -257,7 +257,7 @@ pub async fn scrap(
         let transaction = db.transaction().await?;
 
         let s = Species::scrap_occurrences(
-            species,
+            species.clone(),
             max_occurrences,
             &BLACKLISTED_DATASET,
             &config.storage,
@@ -268,22 +268,20 @@ pub async fn scrap(
         transaction.commit().await?;
 
         match s {
-            Ok(s) => {
-                if let Some(species_key) = s.species_key {
-                    let medias_dir = config.storage.medias_dir(species_key);
-                    let medias_dir = medias_dir.to_str().expect("Failed to convert path to str");
-                    create_dir_all(medias_dir).await.expect(&format!(
-                        "Failed to create medias directory \"{}\"",
-                        medias_dir
-                    ));
+            Ok(_) => {
+                let medias_dir = config.storage.medias_dir(&species);
+                let medias_dir = medias_dir.to_str().expect("Failed to convert path to str");
+                create_dir_all(medias_dir).await.expect(&format!(
+                    "Failed to create medias directory \"{}\"",
+                    medias_dir
+                ));
 
-                    let medias_dir = config.storage.cropped_medias_dir(species_key);
-                    let medias_dir = medias_dir.to_str().expect("Failed to convert path to str");
-                    create_dir_all(medias_dir).await.expect(&format!(
-                        "Failed to create cropped medias directory \"{}\"",
-                        medias_dir
-                    ));
-                }
+                let medias_dir = config.storage.cropped_medias_dir(&species);
+                let medias_dir = medias_dir.to_str().expect("Failed to convert path to str");
+                create_dir_all(medias_dir).await.expect(&format!(
+                    "Failed to create cropped medias directory \"{}\"",
+                    medias_dir
+                ));
             }
             Err(e) => {
                 error!("{}", e);

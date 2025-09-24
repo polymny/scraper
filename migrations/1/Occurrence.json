@@ -1,0 +1,30 @@
+[
+  {
+    "type": "Table",
+    "name": "occurrences",
+    "columns": [
+      {
+        "name": "id",
+        "ty": "Id",
+        "unique": false
+      },
+      {
+        "name": "key",
+        "ty": "I64",
+        "unique": true
+      },
+      {
+        "name": "dataset_key",
+        "ty": "Uuid",
+        "unique": false
+      },
+      {
+        "name": "species",
+        "ty": {
+          "Reference": "speciess"
+        },
+        "unique": false
+      }
+    ]
+  }
+]

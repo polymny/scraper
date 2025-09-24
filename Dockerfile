@@ -26,6 +26,7 @@ RUN cargo build --release
 # Build scraper
 RUN rm -rf src
 COPY src src
+COPY migrations migrations
 RUN cargo build --release
 
 #######################################################################################################################
@@ -54,6 +55,7 @@ COPY static static
 COPY templates templates
 COPY --from=build /app/migrations migrations
 COPY Rocket.tpl.toml .
+COPY Cargo.toml .
 COPY ./scripts/generate-examples.sh /usr/local/bin/generate-examples
 COPY ./scripts/generate-csv.sh /usr/local/bin/generate-csv
 

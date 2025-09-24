@@ -1,0 +1,112 @@
+[
+  {
+    "type": "Table",
+    "name": "medias",
+    "columns": [
+      {
+        "name": "id",
+        "ty": "Id",
+        "unique": false
+      },
+      {
+        "name": "url",
+        "ty": "String",
+        "unique": true
+      },
+      {
+        "name": "path",
+        "ty": {
+          "Option": "String"
+        },
+        "unique": false
+      },
+      {
+        "name": "status_code",
+        "ty": {
+          "Option": "I32"
+        },
+        "unique": false
+      },
+      {
+        "name": "to_download",
+        "ty": "Bool",
+        "unique": false
+      },
+      {
+        "name": "cropped",
+        "ty": "Bool",
+        "unique": false
+      },
+      {
+        "name": "x",
+        "ty": {
+          "Option": "F64"
+        },
+        "unique": false
+      },
+      {
+        "name": "y",
+        "ty": {
+          "Option": "F64"
+        },
+        "unique": false
+      },
+      {
+        "name": "width",
+        "ty": {
+          "Option": "F64"
+        },
+        "unique": false
+      },
+      {
+        "name": "height",
+        "ty": {
+          "Option": "F64"
+        },
+        "unique": false
+      },
+      {
+        "name": "confidence",
+        "ty": {
+          "Option": "F64"
+        },
+        "unique": false
+      },
+      {
+        "name": "manual_x",
+        "ty": {
+          "Option": "F64"
+        },
+        "unique": false
+      },
+      {
+        "name": "manual_y",
+        "ty": {
+          "Option": "F64"
+        },
+        "unique": false
+      },
+      {
+        "name": "manual_width",
+        "ty": {
+          "Option": "F64"
+        },
+        "unique": false
+      },
+      {
+        "name": "manual_height",
+        "ty": {
+          "Option": "F64"
+        },
+        "unique": false
+      },
+      {
+        "name": "occurrence",
+        "ty": {
+          "Reference": "occurrences"
+        },
+        "unique": false
+      }
+    ]
+  }
+]

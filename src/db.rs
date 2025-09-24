@@ -121,6 +121,18 @@ pub struct Species {
     pub example_media_path: Option<String>,
 }
 
+/// This trait is used for shared attributes between db::Species and taxref::Entry.
+pub trait SpeciesTrait {
+    /// Returns the valid name of the species
+    fn valid_name(&self) -> &str;
+}
+
+impl SpeciesTrait for Species {
+    fn valid_name(&self) -> &str {
+        &self.valid_name
+    }
+}
+
 impl Species {
     /// Returns a meaningful representation of the species in JSON.
     pub async fn to_json(&self, db: &Db) -> Result<Value> {
@@ -377,6 +389,11 @@ pub struct Media {
     /// Confidence of the cropping.
     pub confidence: Option<f64>,
 
+    /// Occurrence that references this media.
+    #[many_to_one(medias)]
+    #[serde(skip)]
+    pub occurrence: Occurrence,
+
     /// x coordinate of the manual bounding box.
     pub manual_x: Option<f64>,
 
@@ -388,11 +405,6 @@ pub struct Media {
 
     /// Height of the manual bounding box.
     pub manual_height: Option<f64>,
-
-    /// Occurrence that references this media.
-    #[many_to_one(medias)]
-    #[serde(skip)]
-    pub occurrence: Occurrence,
 }
 
 impl Media {
@@ -409,11 +421,11 @@ impl Media {
             None,
             None,
             None,
-            None,
-            None,
-            None,
-            None,
             occurrence,
+            None,
+            None,
+            None,
+            None,
         )
     }
 
@@ -506,19 +518,20 @@ impl Media {
         client: &Client,
         storage: &Storage,
     ) -> Result<(i32, Option<PathBuf>)> {
-        let species_key = if let Some(species_key) = species.species_key {
-            species_key
-        } else {
-            return Err(Error::SpeciesNotFound(species.valid_name.clone()));
-        };
+        // No longer needed since we use the names for data dir.
+        // let species_key = if let Some(species_key) = species.species_key {
+        //     species_key
+        // } else {
+        //     return Err(Error::SpeciesNotFound(species.valid_name.clone()));
+        // };
 
         // We don't know the extension yet, because we don't know the type of image.
         let mut target_local = storage
-            .medias_dir_local(species_key)
+            .medias_dir_local(species)
             .join(format!("{}_{:04}", occurrence.key, self.id));
 
         let mut target = storage
-            .medias_dir(species_key)
+            .medias_dir(species)
             .join(format!("{}_{:04}", occurrence.key, self.id));
 
         // Start downloading.

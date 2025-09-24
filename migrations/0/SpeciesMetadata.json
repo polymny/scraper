@@ -1,0 +1,89 @@
+[
+  {
+    "type": "Table",
+    "name": "species_metadatas",
+    "columns": [
+      {
+        "name": "id",
+        "ty": "Id",
+        "unique": false
+      },
+      {
+        "name": "reign",
+        "ty": {
+          "Option": "String"
+        },
+        "unique": false
+      },
+      {
+        "name": "phylum",
+        "ty": {
+          "Option": "String"
+        },
+        "unique": false
+      },
+      {
+        "name": "class",
+        "ty": {
+          "Option": "String"
+        },
+        "unique": false
+      },
+      {
+        "name": "order",
+        "ty": {
+          "Option": "String"
+        },
+        "unique": false
+      },
+      {
+        "name": "family",
+        "ty": {
+          "Option": "String"
+        },
+        "unique": false
+      },
+      {
+        "name": "genus",
+        "ty": {
+          "Option": "String"
+        },
+        "unique": false
+      },
+      {
+        "name": "species",
+        "ty": {
+          "Option": "String"
+        },
+        "unique": true
+      },
+      {
+        "name": "example_media_path",
+        "ty": {
+          "Option": "String"
+        },
+        "unique": false
+      },
+      {
+        "name": "species_count",
+        "ty": "I32",
+        "unique": false
+      },
+      {
+        "name": "medias_count",
+        "ty": "I32",
+        "unique": false
+      },
+      {
+        "name": "medias_downloaded_count",
+        "ty": "I32",
+        "unique": false
+      },
+      {
+        "name": "medias_cropped_count",
+        "ty": "I32",
+        "unique": false
+      }
+    ]
+  }
+]

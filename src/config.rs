@@ -4,10 +4,13 @@ use std::path::PathBuf;
 
 use serde::{Deserialize, Serialize};
 
-use uuid::{uuid, Uuid};
+use uuid::{Uuid, uuid};
 
-use rocket::figment::Figment;
 use rocket::Phase;
+use rocket::figment::Figment;
+
+use crate::db::SpeciesTrait;
+use crate::utils::pretty_name;
 
 /// Blacklisted dataset.
 ///
@@ -73,16 +76,21 @@ impl Storage {
         self.data_path.join("species")
     }
 
+    /// Returns the root of the medias directory.
+    pub fn medias_root(&self) -> PathBuf {
+        self.data_path.join("medias")
+    }
+
     /// Returns the root of the cropped medias directory.
     pub fn cropped_root(&self) -> PathBuf {
         self.data_path.join("medias_cropped")
     }
 
     /// Returns the media path for a species.
-    pub fn medias_dir(&self, species_key: i64) -> PathBuf {
+    pub fn medias_dir<S: SpeciesTrait>(&self, species: &S) -> PathBuf {
         self.data_path
             .join("medias")
-            .join(&self.medias_dir_local(species_key))
+            .join(&self.medias_dir_local(species))
     }
 
     /// Returns the path to the temporary directory where the python can move cropped images.
@@ -91,13 +99,15 @@ impl Storage {
     }
 
     /// Returns the cropped media path for a species.
-    pub fn cropped_medias_dir(&self, species_key: i64) -> PathBuf {
-        self.cropped_root()
-            .join(&self.medias_dir_local(species_key))
+    pub fn cropped_medias_dir<S: SpeciesTrait>(&self, species: &S) -> PathBuf {
+        self.cropped_root().join(&self.medias_dir_local(species))
     }
 
     /// Returns the part of the media path after medias.
-    pub fn medias_dir_local(&self, species_key: i64) -> PathBuf {
-        PathBuf::from(format!("{}", species_key))
+    pub fn medias_dir_local<S: SpeciesTrait>(&self, species: &S) -> PathBuf {
+        PathBuf::from(format!(
+            "{}",
+            pretty_name(species.valid_name()).unwrap().to_lowercase()
+        ))
     }
 }

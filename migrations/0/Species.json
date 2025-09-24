@@ -1,0 +1,72 @@
+[
+  {
+    "type": "Table",
+    "name": "speciess",
+    "columns": [
+      {
+        "name": "id",
+        "ty": "Id",
+        "unique": false
+      },
+      {
+        "name": "reign",
+        "ty": "String",
+        "unique": false
+      },
+      {
+        "name": "phylum",
+        "ty": "String",
+        "unique": false
+      },
+      {
+        "name": "class",
+        "ty": "String",
+        "unique": false
+      },
+      {
+        "name": "order",
+        "ty": "String",
+        "unique": false
+      },
+      {
+        "name": "family",
+        "ty": "String",
+        "unique": false
+      },
+      {
+        "name": "genus",
+        "ty": "String",
+        "unique": false
+      },
+      {
+        "name": "valid_name",
+        "ty": "String",
+        "unique": true
+      },
+      {
+        "name": "species_key",
+        "ty": {
+          "Option": "I64"
+        },
+        "unique": true
+      },
+      {
+        "name": "available_occurrences",
+        "ty": "I64",
+        "unique": false
+      },
+      {
+        "name": "done",
+        "ty": "Bool",
+        "unique": false
+      },
+      {
+        "name": "example_media_path",
+        "ty": {
+          "Option": "String"
+        },
+        "unique": false
+      }
+    ]
+  }
+]

@@ -9,6 +9,7 @@ use std::str::FromStr;
 
 use rocket::request::FromParam;
 
+use crate::db::SpeciesTrait;
 use crate::utils;
 use crate::{Error, Result};
 
@@ -148,6 +149,12 @@ pub struct Entry {
 
     /// Whether the species is present in france or not.
     pub fr: String,
+}
+
+impl SpeciesTrait for Entry {
+    fn valid_name(&self) -> &str {
+        &self.valid_name
+    }
 }
 
 impl Entry {

@@ -82,16 +82,17 @@
 
     <div class="fixed-grid has-8-cols">
         <div class="grid">
-        {% for media in medias %}
+        {% for media_with_occurrence in medias_with_occurrences %}
+            {% set media = media_with_occurrence[0] %}
+            {% set occurrence = media_with_occurrence[1] %}
             <div class="cell {% if media.manual_x %}cell-cropped{% elif media.x %}cell-cropped{% else %}cell-not-cropped{% endif %}">
-                <a href="/crop/{{ media.path | replace(from="_", to="/") | split(pat=".") | slice(end=-1) | join(sep=".") | safe }}">
+                <a href="/crop/{{ species.species_key }}/{{ occurrence.key }}/{{ media.id }}">
                     <span class="icon">
                         <img src="/static/icons/crop.svg">
                     </span>
                 </a>
-                <a href="/media/{{ media.path | replace(from="_", to="/") | split(pat=".") | slice(end=-1) | join(sep=".") | safe }}">
+                <a href="/media/{{ species.species_key }}/{{ occurrence.key }}/{{ media.id }}">
                     <div class="has-text-centered">
-
                         <canvas
                             width=0
                             height=0

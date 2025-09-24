@@ -26,11 +26,11 @@ cp docker-compose.nvidia.yml docker-compose.override.yml
 # Création et démarrage de l'image docker de l'appli et de la base de données
 docker-compose up -d --build
 
-# Initialisation de la base de données
-docker compose exec server scraper reset-db
+# Initialisation / mise à jour de la base de données
+docker compose exec server ergol migrate
 
 # Démarrage du scraping sur la famille Apidae
-docker compose exec server scraper scrap genus=Andrena
+docker compose exec server scraper scrap family=Apidae
 
 # Calcul des médias d'exemple
 docker compose exec server generate-examples
