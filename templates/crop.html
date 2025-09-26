@@ -2,6 +2,12 @@
 
 {% block extracss %}
 <style>
+    html, body {
+        height: 100vh;
+        margin: 0px;
+        padding: 0px;
+    }
+
     .cell {
         border: solid;
         border-width: 1px;
@@ -9,38 +15,44 @@
         padding: 0.5em;
     }
 
+    .canvas-container {
+        height: 100%;
+    }
+
+    canvas {
+        max-width: 100%;
+        max-height: calc(100vh - 150px);;
+        margin: auto;
+    }
 </style>
 {% endblock extracss %}
 
+{% block extranavbarstart %}
+    <span class="navbar-item is-italic">
+        {{ species_pretty_name }}
+    </span>
+    <span class="navbar-item">
+        {{ species_pretty_finder }}
+    </span>
+{% endblock extranavbarstart %}
+
+{% block extranavbarend %}
+    <a class="navbar-item" id="reinit">Refaire le crop</a>
+    <a class="navbar-item" id="validate" style="display: none;">Valider le crop</a>
+{% endblock extranavbarend %}
+
 {% block content %}
 <section class="section">
-    <h2 class="title is-4 is-italic">
-        {{ species_pretty_name }}
-    </h2>
-    <h3 class="title is-5">
-        {{ species_pretty_finder }}
-    </h3>
-</section>
-
-<section class="section">
-    <div class="columns">
-        <div id="column" class="column is-4 is-offset-4">
-            <div class="has-text-centered">
-                <canvas
-                    id="canvas"
-                    width=0
-                    height=0
-                    class="blur canvas"
-                    data-src="/data/medias/{{ media.path | safe }}"
-                    data-id="{{ media.id }}"
-                >
-                </canvas>
-            </div>
-            <div class="has-text-centered">
-                <button class="button is-link is-outlined" id="reinit">Refaire le crop</button>
-                <button class="button is-link" id="validate" style="visibility: hidden;">Valider le crop</button>
-            </div>
-        </div>
+    <div class="canvas-container has-text-centered">
+        <canvas
+            id="canvas"
+            width=0
+            height=0
+            class="blur canvas"
+            data-src="/data/medias/{{ media.path | safe }}"
+            data-id="{{ media.id }}"
+        >
+        </canvas>
     </div>
 </section>
 {% endblock content %}
@@ -80,16 +92,16 @@
         async init() {
             this.img = await loadImage(this.src);
 
-            let width = this.canvas.parentElement.clientWidth;
-            this.canvas.width = width;
-            this.canvas.height = width * this.img.height / this.img.width;
+            // let width = this.canvas.parentElement.clientWidth;
+            this.canvas.width = this.img.width;
+            this.canvas.height = this.img.height;
 
             canvas.addEventListener('mousemove', event => {
                 switch (this.step) {
-                    case 0: this.box.x = event.offsetX / canvas.width; break;
-                    case 1: this.box.y = event.offsetY / canvas.height; break;
-                    case 2: this.box.width = event.offsetX / canvas.width - this.box.x; break;
-                    case 3: this.box.height = event.offsetY / canvas.height - this.box.y; break;
+                    case 0: this.box.x = event.offsetX / canvas.offsetWidth; break;
+                    case 1: this.box.y = event.offsetY / canvas.offsetHeight; break;
+                    case 2: this.box.width = event.offsetX / canvas.offsetWidth - this.box.x; break;
+                    case 3: this.box.height = event.offsetY / canvas.offsetHeight - this.box.y; break;
                 }
 
                 this.render();
@@ -119,11 +131,11 @@
         }
 
         markDone() {
-            this.validateButton.style.visibility = "visible";
+            this.validateButton.style.display = "flex";
         }
 
         reinit() {
-            this.validateButton.style.visibility = "hidden";
+            this.validateButton.style.display = "none";
             this.step = 0;
             this.box = {x: 0, y: 0, width: 1, height: 1};
             this.render();

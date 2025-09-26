@@ -273,9 +273,7 @@ pub async fn species_by_valid_name(
             occurrences.dataset_key != $2 AND
             200 <= medias.status_code AND medias.status_code < 400 {}
         GROUP BY
-            medias.id, medias.x, medias.manual_x
-        ORDER BY
-            medias.id
+            speciess.id
         ;
     "#,
         if only_uncropped {
@@ -287,9 +285,9 @@ pub async fn species_by_valid_name(
 
     let arg: &[&(dyn ToSql + Sync)] = &[&valid_name, &BLACKLISTED_DATASET];
     let query = db.client().query(&sql, &arg).await?;
-    let mut query_iter = query.into_iter();
-    let medias_len = query_iter.next().unwrap().get::<usize, i64>(0);
-    let medias_cropped_len = query_iter.next().unwrap().get::<usize, i64>(0);
+    let row = query.into_iter().next().unwrap();
+    let medias_len = row.get::<usize, i64>(0);
+    let medias_cropped_len = row.get::<usize, i64>(1);
     let offset = (page - 1) as i64 * LIMIT;
 
     let sql = format!(
@@ -476,10 +474,13 @@ pub async fn media(
         .unwrap();
 
     let media = Media::get_by_id(media_index, &db).await?.unwrap();
+    let occurrence = media.occurrence(&db).await?;
 
     tera.render_json(
         "media.html",
         json!({
+            "species": species.to_json(&db).await?,
+            "occurrence": occurrence,
             "species_pretty_name": pretty_name(&species.valid_name),
             "species_pretty_finder": pretty_finder(&species.valid_name),
             "species_key": species_key,

@@ -5,17 +5,6 @@
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <title>Scraper</title>
         <link rel="stylesheet" href="/static/bulma.min.css">
-        <style>
-            body {
-                position: relative;
-                min-height: 100vh;
-            }
-            footer {
-                width: 100%;
-                position: absolute;
-                bottom: 0px;
-            }
-        </style>
         {% block extracss %}{% endblock extracss %}
     </head>
     <body>
@@ -32,13 +21,15 @@
             </div>
             <div id="navbarBasicExample" class="navbar-menu">
                 <div class="navbar-start">
+                    {% block extranavbarstart %}
+                    {% endblock extranavbarstart %}
+                </div>
+                <div class="navbar-end">
+                    {% block extranavbarend %}
+                    {% endblock extranavbarend %}
                     <div class="navbar-item">
                         <strong>v{{ version }}</strong>
                     </div>
-                </div>
-                <div class="navbar-end">
-                    {% block extranavbar %}
-                    {% endblock extranavbar %}
                 </div>
             </div>
         </nav>

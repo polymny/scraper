@@ -22,7 +22,9 @@
 {% block content %}
 <section class="section">
     <h1 class="title is-2">{{ species.pretty_name }}</h1>
-    <h2 class="title is-5">{{ medias_len }} medias, {{ medias_cropped_len }} cropped</h2>
+    <h2 class="title is-5">{{ medias_len }} medias, {{ medias_cropped_len }} croppés,
+        <a href="/uncropped-species/species/{{ species.valid_name }}/1">voir les médias non croppés</a>
+    </h2>
 
     <nav class="breadcrumb has-succeeds-separator" aria-label="breadcrumbs">
         <ul>
