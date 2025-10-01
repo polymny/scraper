@@ -40,6 +40,7 @@ RUN apt-get update && apt-get install -y libssl3 python3 python3-pip python-is-p
 WORKDIR /app/python
 COPY python/requirements.txt requirements.txt
 COPY python/requirements_cuda.txt requirements_cuda.txt
+COPY python/requirements_cpu.txt requirements_cpu.txt
 
 RUN pip install --no-cache-dir -r requirements_cuda.txt || pip install --no-cache-dir -r requirements_cpu.txt
 RUN pip install --no-cache-dir -r requirements.txt
