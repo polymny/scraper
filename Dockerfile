@@ -41,7 +41,7 @@ WORKDIR /app/python
 COPY python/requirements.txt requirements.txt
 COPY python/requirements_cuda.txt requirements_cuda.txt
 
-RUN pip install --no-cache-dir -r requirements_cuda.txt
+RUN pip install --no-cache-dir -r requirements_cuda.txt || pip install --no-cache-dir -r requirements_cpu.txt
 RUN pip install --no-cache-dir -r requirements.txt
 COPY python/main.py main.py
 
